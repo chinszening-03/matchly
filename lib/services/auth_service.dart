@@ -1,11 +1,16 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class AuthService {
 
   final FirebaseAuth _auth = FirebaseAuth.instance;
+  final GoogleSignIn _googleSignIn = GoogleSignIn();
 
-  /// Email Sign Up
+  User? getCurrentUser() {
+    return _auth.currentUser;
+  }
+
   Future<User?> signUpWithEmail(String email, String password) async {
 
     try {
@@ -16,7 +21,7 @@ class AuthService {
         password: password,
       );
 
-      return userCredential.user; 
+      return userCredential.user;
 
     } catch (e) {
       print(e);
@@ -24,35 +29,30 @@ class AuthService {
     }
   }
 
-  Future<void> logout() async {
-  await FirebaseAuth.instance.signOut();
-}
-
   Future<User?> signInWithEmail(String email, String password) async {
-  
-  try {
 
-    UserCredential userCredential =
-        await _auth.signInWithEmailAndPassword(
-      email: email,
-      password: password,
-    );
+    try {
 
-    return userCredential.user;
+      UserCredential userCredential =
+          await _auth.signInWithEmailAndPassword(
+        email: email,
+        password: password,
+      );
 
-  } catch (e) {
-    print("Login Error: $e");
-    return null;
+      return userCredential.user;
+
+    } catch (e) {
+      print(e);
+      return null;
+    }
   }
-}
 
-  /// Google Sign In
   Future<User?> signInWithGoogle() async {
 
     try {
 
       final GoogleSignInAccount? googleUser =
-          await GoogleSignIn().signIn();
+          await _googleSignIn.signIn();
 
       if (googleUser == null) return null;
 
@@ -73,5 +73,25 @@ class AuthService {
       print(e);
       return null;
     }
+  }
+
+  Future<void> createUserProfile(
+      String uid,
+      String name,
+      String email,
+      ) async {
+
+    await FirebaseFirestore.instance
+        .collection("users")
+        .doc(uid)
+        .set({
+      "name": name,
+      "email": email,
+      "createdAt": Timestamp.now(),
+    });
+  }
+
+  Future<void> logout() async {
+    await _auth.signOut();
   }
 }

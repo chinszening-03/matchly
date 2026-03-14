@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:matchly/screens/home/home_screen.dart';
 import 'package:matchly/screens/auth/login_screen.dart';
 import '../../services/auth_service.dart';
 
@@ -11,18 +12,46 @@ class SignUpScreen extends StatefulWidget {
 
 class _SignUpScreenState extends State<SignUpScreen> {
 
+  final TextEditingController nameController = TextEditingController();
   final TextEditingController emailController = TextEditingController();
   final TextEditingController passwordController = TextEditingController();
+  final TextEditingController confirmPasswordController = TextEditingController();
 
   bool loading = false;
 
   Future<void> signUp() async {
+
+    if (passwordController.text != confirmPasswordController.text) {
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Passwords do not match")),
+      );
+
+      return;
+    }
+
     setState(() => loading = true);
 
-    await AuthService().signUpWithEmail(
+    final user = await AuthService().signUpWithEmail(
       emailController.text.trim(),
       passwordController.text.trim(),
     );
+
+    if (user != null) {
+
+      await AuthService().createUserProfile(
+        user.uid,
+        nameController.text.trim(),
+        emailController.text.trim(),
+      );
+
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (context) => const HomeScreen(),
+        ),
+      );
+    }
 
     setState(() => loading = false);
   }
@@ -40,21 +69,59 @@ class _SignUpScreenState extends State<SignUpScreen> {
       backgroundColor: Colors.white,
 
       body: SafeArea(
-        child: Padding(
+        child: SingleChildScrollView(
+
           padding: const EdgeInsets.symmetric(horizontal: 28),
 
           child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.center,
 
             children: [
+
+              const SizedBox(height: 30),
 
               /// Logo
               Image.asset(
                 "assets/logo.png",
-                height: 200,
+                height: 150,
               ),
 
-              const SizedBox(height: 40),
+              const SizedBox(height: 20),
+
+              /// Title
+              const Text(
+                "Sign Up to Join the Team",
+                style: TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+
+              const SizedBox(height: 8),
+
+              const Text(
+                "Find teammates, host games, and play together.",
+                style: TextStyle(
+                  color: Colors.grey,
+                  fontSize: 14,
+                ),
+                textAlign: TextAlign.center,
+              ),
+
+              const SizedBox(height: 30),
+
+              /// Name
+              TextField(
+                controller: nameController,
+                decoration: InputDecoration(
+                  labelText: "Name",
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 20),
 
               /// Email
               TextField(
@@ -81,20 +148,38 @@ class _SignUpScreenState extends State<SignUpScreen> {
                 ),
               ),
 
+              const SizedBox(height: 20),
+
+              /// Confirm Password
+              TextField(
+                controller: confirmPasswordController,
+                obscureText: true,
+                decoration: InputDecoration(
+                  labelText: "Confirm Password",
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+              ),
+
               const SizedBox(height: 30),
 
               /// Sign Up Button
               SizedBox(
                 width: double.infinity,
                 height: 50,
+
                 child: ElevatedButton(
+
                   style: ElevatedButton.styleFrom(
                     backgroundColor: darkBlue,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
                     ),
                   ),
+
                   onPressed: loading ? null : signUp,
+
                   child: loading
                       ? const CircularProgressIndicator(color: Colors.white)
                       : const Text(
@@ -109,27 +194,34 @@ class _SignUpScreenState extends State<SignUpScreen> {
 
               const SizedBox(height: 16),
 
+              /// Login link
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
+
                   const Text("Already have an account?"),
+
                   TextButton(
                     onPressed: () {
+
                       Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (context) => const LoginScreen()),
-                    ); // go back to login screen
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const LoginScreen(),
+                        ),
+                      );
+
                     },
                     child: const Text("Login"),
                   ),
                 ],
               ),
 
-              const SizedBox(height: 20),
+              const SizedBox(height: 10),
 
               const Text("OR"),
 
-              const SizedBox(height: 20),
+              const SizedBox(height: 10),
 
               /// Google Sign In
               SizedBox(
@@ -159,6 +251,8 @@ class _SignUpScreenState extends State<SignUpScreen> {
                   ),
                 ),
               ),
+
+              const SizedBox(height: 30),
 
             ],
           ),
