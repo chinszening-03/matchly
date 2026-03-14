@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:matchly/screens/home/home_screen.dart';
 import '../../services/auth_service.dart';
-import 'signup_screen.dart';
-import '../home/home_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -12,65 +11,38 @@ class LoginScreen extends StatefulWidget {
 
 class _LoginScreenState extends State<LoginScreen> {
 
-  final TextEditingController emailController = TextEditingController();
-  final TextEditingController passwordController = TextEditingController();
-
   bool loading = false;
-
-  Future<void> login() async {
-
-  setState(() => loading = true);
-
-  final user = await AuthService().signInWithEmail(
-    emailController.text.trim(),
-    passwordController.text.trim(),
-  );
-
-  setState(() => loading = false);
-
-  if (user != null) {
-
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(
-        builder: (context) => const HomeScreen(),
-      ),
-    );
-
-  } else {
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text("Login failed. Please check your email and password."),
-      ),
-    );
-
-  }
-}
 
   Future<void> googleLogin() async {
 
-  final user = await AuthService().signInWithGoogle();
+    setState(() {
+      loading = true;
+    });
 
-  if (user != null) {
+    final user = await AuthService().signInWithGoogle();
 
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(
-        builder: (context) => const HomeScreen(),
-      ),
-    );
+    setState(() {
+      loading = false;
+    });
 
-  } else {
+    if (user != null) {
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text("Google login failed"),
-      ),
-    );
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (_) => const HomeScreen(),
+        ),
+      );
 
+    } else {
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Google sign-in failed"),
+        ),
+      );
+    }
   }
-}
 
   @override
   Widget build(BuildContext context) {
@@ -86,50 +58,62 @@ class _LoginScreenState extends State<LoginScreen> {
 
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
-
             children: [
 
               /// Logo
               Image.asset(
                 "assets/logo.png",
-                height: 120,
-              ),
-
-              const SizedBox(height: 40),
-
-              /// Email
-              TextField(
-                controller: emailController,
-                decoration: InputDecoration(
-                  labelText: "Email",
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-              ),
-
-              const SizedBox(height: 20),
-
-              /// Password
-              TextField(
-                controller: passwordController,
-                obscureText: true,
-                decoration: InputDecoration(
-                  labelText: "Password",
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
+                height: 160,
               ),
 
               const SizedBox(height: 30),
 
-              /// Login Button
+              /// Title
+              const Text(
+                "Welcome to Matchly",
+                style: TextStyle(
+                  fontSize: 26,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+
+              const SizedBox(height: 8),
+
+              /// Subtitle
+              const Text(
+                "Find teammates, host games, and play together.",
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: Colors.grey,
+                  fontSize: 14,
+                ),
+              ),
+
+              const SizedBox(height: 40),
+
+              /// Google Button
               SizedBox(
                 width: double.infinity,
-                height: 50,
+                height: 55,
 
-                child: ElevatedButton(
+                child: ElevatedButton.icon(
+
+                  onPressed: loading ? null : googleLogin,
+
+                  icon: Image.network(
+                    "https://developers.google.com/identity/images/g-logo.png",
+                    height: 24,
+                  ),
+
+                  label: loading
+                      ? const CircularProgressIndicator(color: Colors.white)
+                      : const Text(
+                          "Continue with Google",
+                          style: TextStyle(
+                            fontSize: 16,
+                            color: Colors.white,
+                          ),
+                        ),
 
                   style: ElevatedButton.styleFrom(
                     backgroundColor: darkBlue,
@@ -137,82 +121,18 @@ class _LoginScreenState extends State<LoginScreen> {
                       borderRadius: BorderRadius.circular(12),
                     ),
                   ),
-
-                  onPressed: loading ? null : login,
-
-                  child: loading
-                      ? const CircularProgressIndicator(color: Colors.white)
-                      : const Text(
-                          "Login",
-                          style: TextStyle(
-                            fontSize: 16,
-                            color: Colors.white,
-                          ),
-                        ),
                 ),
               ),
 
               const SizedBox(height: 20),
 
-              const Text("OR"),
-
-              const SizedBox(height: 20),
-
-              /// Google Login
-              SizedBox(
-                width: double.infinity,
-                height: 50,
-
-                child: OutlinedButton.icon(
-
-                  onPressed: googleLogin,
-
-                  icon: Image.network(
-                    "https://developers.google.com/identity/images/g-logo.png",
-                    height: 24,
-                  ),
-
-                  label: const Text(
-                    "Continue with Google",
-                    style: TextStyle(fontSize: 16),
-                  ),
-
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: darkBlue,
-                    side: const BorderSide(color: darkBlue),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
+              const Text(
+                "By continuing you agree to our Terms of Service",
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Colors.grey,
                 ),
-              ),
-
-              const SizedBox(height: 25),
-
-              /// Navigate to Sign Up
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-
-                  const Text("Don't have an account?"),
-
-                  TextButton(
-
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const SignUpScreen(),
-                        ),
-                      );
-                    },
-
-                    child: const Text(
-                      "Sign Up",
-                      style: TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                  )
-                ],
               ),
 
             ],

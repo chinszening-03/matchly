@@ -11,44 +11,8 @@ class AuthService {
     return _auth.currentUser;
   }
 
-  Future<User?> signUpWithEmail(String email, String password) async {
-
-    try {
-
-      UserCredential userCredential =
-          await _auth.createUserWithEmailAndPassword(
-        email: email,
-        password: password,
-      );
-
-      return userCredential.user;
-
-    } catch (e) {
-      print(e);
-      return null;
-    }
-  }
-
-  Future<User?> signInWithEmail(String email, String password) async {
-
-    try {
-
-      UserCredential userCredential =
-          await _auth.signInWithEmailAndPassword(
-        email: email,
-        password: password,
-      );
-
-      return userCredential.user;
-
-    } catch (e) {
-      print(e);
-      return null;
-    }
-  }
-
+  /// GOOGLE SIGN IN
   Future<User?> signInWithGoogle() async {
-
     try {
 
       final GoogleSignInAccount? googleUser =
@@ -67,31 +31,48 @@ class AuthService {
       UserCredential userCredential =
           await _auth.signInWithCredential(credential);
 
-      return userCredential.user;
+      final user = userCredential.user;
+
+      if (user != null) {
+        await _createUserIfNotExists(user);
+      }
+
+      return user;
 
     } catch (e) {
-      print(e);
+      print("Google Sign-In Error: $e");
       return null;
     }
   }
 
-  Future<void> createUserProfile(
-      String uid,
-      String name,
-      String email,
-      ) async {
+  /// AUTO CREATE USER PROFILE
+  Future<void> _createUserIfNotExists(User user) async {
 
-    await FirebaseFirestore.instance
+    final doc = await FirebaseFirestore.instance
         .collection("users")
-        .doc(uid)
-        .set({
-      "name": name,
-      "email": email,
-      "createdAt": Timestamp.now(),
-    });
+        .doc(user.uid)
+        .get();
+
+    if (!doc.exists) {
+
+      await FirebaseFirestore.instance
+          .collection("users")
+          .doc(user.uid)
+          .set({
+
+        "name": user.displayName ?? "Player",
+        "email": user.email ?? "",
+        "points": 0,
+        "club": "",
+        "createdAt": Timestamp.now(),
+
+      });
+    }
   }
 
+  /// LOGOUT
   Future<void> logout() async {
+    await _googleSignIn.signOut();
     await _auth.signOut();
   }
 }

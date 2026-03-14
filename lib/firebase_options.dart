@@ -63,6 +63,8 @@ class DefaultFirebaseOptions {
     messagingSenderId: '126106857299',
     projectId: 'matchly-da5ba',
     storageBucket: 'matchly-da5ba.firebasestorage.app',
+    iosClientId: '126106857299-1kescpncdvufk35vnq0jrn6h0vhat51u.apps.googleusercontent.com',
     iosBundleId: 'com.example.matchly',
   );
+
 }

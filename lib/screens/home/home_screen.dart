@@ -29,7 +29,7 @@ class _HomeScreenState extends State<HomeScreen> {
         .get();
 
     setState(() {
-      name = doc["name"];
+      name = doc.data()?["name"] ?? "Player";
     });
   }
 
