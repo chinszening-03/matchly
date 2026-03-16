@@ -23,6 +23,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
     final uid = AuthService().getCurrentUser()?.uid;
 
+    if (uid == null) return;
+
     final doc = await FirebaseFirestore.instance
         .collection("users")
         .doc(uid)
@@ -64,9 +66,11 @@ class _HomeScreenState extends State<HomeScreen> {
 
               const SizedBox(height: 10),
 
+              /// Welcome Text
               Center(
                 child: Column(
                   children: [
+
                     const Text(
                       "Welcome Back,",
                       style: TextStyle(
@@ -82,12 +86,14 @@ class _HomeScreenState extends State<HomeScreen> {
                         fontWeight: FontWeight.bold,
                       ),
                     )
+
                   ],
                 ),
               ),
 
               const SizedBox(height: 20),
 
+              /// Stats Row
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
@@ -101,6 +107,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
               const SizedBox(height: 20),
 
+              /// Top Event
               const Text(
                 "TOP NEWS/EVENT",
                 style: TextStyle(fontWeight: FontWeight.bold),
@@ -111,7 +118,7 @@ class _HomeScreenState extends State<HomeScreen> {
               ClipRRect(
                 borderRadius: BorderRadius.circular(12),
                 child: Image.asset(
-                  "assets/badminton.jpeg",
+                  "assets/badminton.png",
                   height: 90,
                   width: double.infinity,
                   fit: BoxFit.cover,
@@ -120,6 +127,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
               const SizedBox(height: 20),
 
+              /// Games Section
               const Text(
                 "GAMES",
                 style: TextStyle(fontWeight: FontWeight.bold),
@@ -133,19 +141,24 @@ class _HomeScreenState extends State<HomeScreen> {
                 crossAxisCount: 4,
                 crossAxisSpacing: 10,
                 mainAxisSpacing: 12,
+                childAspectRatio: 0.75,
                 children: [
 
-                  gameItem("assets/badminton.jpeg", "PICKLEBALL"),
-                  gameItem("assets/badminton.jpeg", "TENNIS"),
-                  gameItem("assets/badminton.jpeg", "PAINTBALL"),
-                  gameItem("assets/badminton.jpeg", "BASKETBALL"),
+                  gameItem("assets/badminton.png", "Badminton"),
+                  gameItem("assets/pickleball.png", "Pickleball"),
+                  gameItem("assets/tennis.png", "Tennis"),
+                  gameItem("assets/paintball.png", "Paintball"),
 
-                  gameItem("assets/badminton.jpeg", "FOOTBALL"),
-                  gameItem("assets/badminton.jpeg", "FUTSAL"),
-                  gameItem("assets/badminton.jpeg", "GOLF"),
-                  gameItem("assets/badminton.jpeg", "PILATES"),
+                  gameItem("assets/basketball.png", "Basketball"),
+                  gameItem("assets/futsal.png", "Football"),
+                  gameItem("assets/futsal.png", "Futsal"),
+                  gameItem("assets/golf.png", "Golf"),
+
+                  gameItem("assets/pilates.png", "Pilates"),
                 ],
               ),
+
+              const SizedBox(height: 20),
 
             ],
           ),
@@ -167,15 +180,23 @@ class _HomeScreenState extends State<HomeScreen> {
 
       child: Column(
         children: [
+
           Icon(icon, size: 18),
+
           const SizedBox(height: 4),
-          Text(text, style: const TextStyle(fontSize: 12))
+
+          Text(
+            text,
+            style: const TextStyle(fontSize: 12),
+          )
+
         ],
       ),
     );
   }
 
   Widget gameItem(String image, String name) {
+
     return Column(
       children: [
 
@@ -187,10 +208,13 @@ class _HomeScreenState extends State<HomeScreen> {
         const SizedBox(height: 6),
 
         Text(
-          name,
+          name.toUpperCase(),
           style: const TextStyle(fontSize: 10),
           textAlign: TextAlign.center,
-        )
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+
       ],
     );
   }
