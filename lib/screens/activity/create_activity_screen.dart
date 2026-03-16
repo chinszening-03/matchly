@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'activity_details_screen.dart';
 
 class CreateActivityScreen extends StatefulWidget {
   const CreateActivityScreen({super.key});
@@ -21,17 +22,17 @@ class _CreateActivityScreenState extends State<CreateActivityScreen> {
     {"name": "Pilates", "icon": "assets/pilates.png"},
     {"name": "Paintball", "icon": "assets/paintball.png"},
     {"name": "Golf", "icon": "assets/golf.png"},
-    {"name": "Hiking", "icon": "assets/hiking.png"},
+    {"name": "Hiking", "icon": "assets/badminton.png"},
     {"name": "Football", "icon": "assets/football.png"},
     {"name": "Futsal", "icon": "assets/futsal.png"},
-    {"name": "Bowling", "icon": "assets/bowling.png"},
-    {"name": "Bouldering", "icon": "assets/bouldering.png"},
-    {"name": "Dodgeball", "icon": "assets/dodgeball.png"},
-    {"name": "Running", "icon": "assets/running.png"},
-    {"name": "Squash", "icon": "assets/squash.png"},
-    {"name": "Table Tennis", "icon": "assets/table_tennis.png"},
-    {"name": "Frisbee", "icon": "assets/frisbee.png"},
-    {"name": "Volleyball", "icon": "assets/volleyball.png"},
+    {"name": "Bowling", "icon": "assets/badminton.png"},
+    {"name": "Bouldering", "icon": "assets/badminton.png"},
+    {"name": "Dodgeball", "icon": "assets/badminton.png"},
+    {"name": "Running", "icon": "assets/badminton.png"},
+    {"name": "Squash", "icon": "assets/badminton.png"},
+    {"name": "Table Tennis", "icon": "assets/badminton.png"},
+    {"name": "Frisbee", "icon": "assets/badminton.png"},
+    {"name": "Volleyball", "icon": "assets/badminton.png"},
   ];
 
   @override
@@ -135,12 +136,19 @@ class _CreateActivityScreenState extends State<CreateActivityScreen> {
               child: ElevatedButton(
 
                 onPressed: selectedSport.isEmpty
-                    ? null
-                    : () {
+                  ? null
+                  : () {
 
-                  Navigator.pop(context, selectedSport);
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => ActivityDetailsScreen(
+                            sport: selectedSport,
+                          ),
+                        ),
+                      );
 
-                },
+                    },
 
                 style: ButtonStyle(
 
