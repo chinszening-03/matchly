@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../services/auth_service.dart';
+import '../activity/create_activity_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -66,7 +67,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
               const SizedBox(height: 10),
 
-              /// Welcome Text
+              /// Welcome
               Center(
                 child: Column(
                   children: [
@@ -93,7 +94,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
               const SizedBox(height: 20),
 
-              /// Stats Row
+              /// Stats
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
@@ -107,21 +108,41 @@ class _HomeScreenState extends State<HomeScreen> {
 
               const SizedBox(height: 20),
 
-              /// Top Event
+              /// Upcoming Activities
               const Text(
-                "TOP NEWS/EVENT",
+                "UPCOMING ACTIVITIES",
                 style: TextStyle(fontWeight: FontWeight.bold),
               ),
 
               const SizedBox(height: 10),
 
-              ClipRRect(
-                borderRadius: BorderRadius.circular(12),
-                child: Image.asset(
-                  "assets/badminton.png",
-                  height: 90,
-                  width: double.infinity,
-                  fit: BoxFit.cover,
+              SizedBox(
+                height: 170,
+                child: StreamBuilder<QuerySnapshot>(
+                  stream: FirebaseFirestore.instance
+                      .collection("activities")
+                      .orderBy("createdAt", descending: true)
+                      .snapshots(),
+                  builder: (context, snapshot) {
+
+                    List<Widget> cards = [];
+
+                    /// Create activity card
+                    cards.add(createActivityCard());
+
+                    if (snapshot.hasData) {
+
+                      for (var doc in snapshot.data!.docs) {
+                        cards.add(activityCard(doc));
+                      }
+
+                    }
+
+                    return ListView(
+                      scrollDirection: Axis.horizontal,
+                      children: cards,
+                    );
+                  },
                 ),
               ),
 
@@ -163,6 +184,91 @@ class _HomeScreenState extends State<HomeScreen> {
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  /// Create Activity Card
+  Widget createActivityCard() {
+
+    return GestureDetector(
+      onTap: () {
+
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => const CreateActivityScreen(),
+          ),
+        );
+
+      },
+
+      child: Container(
+        width: 150,
+        margin: const EdgeInsets.only(right: 10),
+
+        decoration: BoxDecoration(
+          color: const Color(0xFF0D47A1),
+          borderRadius: BorderRadius.circular(12),
+        ),
+
+        child: const Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+
+              Icon(Icons.add, color: Colors.white, size: 30),
+
+              SizedBox(height: 8),
+
+              Text(
+                "Create\nActivity",
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Colors.white),
+              )
+
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Activity Card
+  Widget activityCard(QueryDocumentSnapshot doc) {
+
+    final data = doc.data() as Map<String, dynamic>;
+
+    return Container(
+      width: 150,
+      margin: const EdgeInsets.only(right: 10),
+
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey.shade300),
+      ),
+
+      padding: const EdgeInsets.all(10),
+
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+
+          Text(
+            data["sport"] ?? "",
+            style: const TextStyle(
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+
+          const SizedBox(height: 8),
+
+          Text("📅 ${data["date"] ?? ""}"),
+          Text("⏰ ${data["startTime"] ?? ""} - ${data["endTime"] ?? ""}"),
+          Text("📍 ${data["location"] ?? ""}"),
+
+        ],
       ),
     );
   }
