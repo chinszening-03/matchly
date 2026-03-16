@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 
 class ActivityDetailsScreen extends StatefulWidget {
 
@@ -22,7 +23,6 @@ class _ActivityDetailsScreenState extends State<ActivityDetailsScreen> {
 
   bool courtBooked = false;
 
-  /// Game Type
   String gameType = "Singles";
 
   final List<String> gameTypes = [
@@ -43,24 +43,208 @@ class _ActivityDetailsScreenState extends State<ActivityDetailsScreen> {
   @override
   void initState() {
     super.initState();
-
-    /// default min players
     minPeopleController.text = "2";
   }
 
+  /// ROUND TIME TO 15 MINUTES
+  DateTime roundToFifteen(DateTime time) {
+
+    int minute = time.minute;
+    int remainder = minute % 15;
+
+    if (remainder != 0) {
+      minute = minute + (15 - remainder);
+    }
+
+    return DateTime(
+      time.year,
+      time.month,
+      time.day,
+      time.hour,
+      minute,
+    );
+  }
+
+  /// CALCULATE DURATION
+  String calculateDuration(DateTime start, DateTime end) {
+
+  /// If end is before start → next day
+  if (end.isBefore(start)) {
+    end = end.add(const Duration(days: 1));
+  }
+
+  final diff = end.difference(start);
+
+  final hours = diff.inHours;
+  final minutes = diff.inMinutes % 60;
+
+  if (minutes == 0) {
+    return "${hours}h";
+  }
+
+  return "${hours}h ${minutes}m";
+}
+
   void updateMinPlayers(String type) {
 
-    if (type == "Singles") {
-      minPeopleController.text = "2";
-    }
+    if (type == "Singles") minPeopleController.text = "2";
+    if (type == "Doubles") minPeopleController.text = "4";
+    if (type == "Social") minPeopleController.text = "5";
+  }
 
-    if (type == "Doubles") {
-      minPeopleController.text = "4";
-    }
+  Future<void> pickDate() async {
 
-    if (type == "Social") {
-      minPeopleController.text = "5";
+    final date = await showDatePicker(
+      context: context,
+      firstDate: DateTime.now(),
+      lastDate: DateTime(2100),
+      initialDate: DateTime.now(),
+    );
+
+    if (date != null) {
+      setState(() {
+        selectedDate = date;
+      });
     }
+  }
+
+  /// TIME PICKER
+  Future<void> pickTimeRange() async {
+
+    DateTime start = roundToFifteen(DateTime.now());
+    DateTime end = roundToFifteen(
+      DateTime.now().add(const Duration(hours: 2)),
+    );
+
+    await showModalBottomSheet(
+
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+
+      builder: (context) {
+
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+
+            String duration = calculateDuration(start, end);
+
+            return SizedBox(
+              height: 320,
+
+              child: Column(
+                children: [
+
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+
+                        const Text(
+                          "Add time",
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+
+                        TextButton(
+                          onPressed: () {
+
+                            setState(() {
+
+                              startTime = TimeOfDay.fromDateTime(start);
+                              endTime = TimeOfDay.fromDateTime(end);
+
+                            });
+
+                            Navigator.pop(context);
+                          },
+                          child: const Text("Done"),
+                        )
+
+                      ],
+                    ),
+                  ),
+
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 10),
+
+                    child: Text(
+                      "${TimeOfDay.fromDateTime(start).format(context)} - "
+                      "${TimeOfDay.fromDateTime(end).format(context)}   $duration",
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+
+                  const Divider(),
+
+                  Expanded(
+                    child: Row(
+                      children: [
+
+                        Expanded(
+                          child: CupertinoDatePicker(
+
+                            mode: CupertinoDatePickerMode.time,
+                            minuteInterval: 15,
+                            use24hFormat: false,
+
+                            initialDateTime: start,
+
+                            onDateTimeChanged: (value) {
+
+                              setModalState(() {
+                                start = value;
+                              });
+                            },
+                          ),
+                        ),
+
+                        const Text(
+                          "-",
+                          style: TextStyle(
+                            fontSize: 22,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+
+                        Expanded(
+                          child: CupertinoDatePicker(
+
+                            mode: CupertinoDatePickerMode.time,
+                            minuteInterval: 15,
+                            use24hFormat: false,
+
+                            initialDateTime: end,
+
+                            onDateTimeChanged: (value) {
+
+                              setModalState(() {
+                                end = value;
+                              });
+                            },
+                          ),
+                        ),
+
+                      ],
+                    ),
+                  ),
+
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
   }
 
   @override
@@ -69,7 +253,7 @@ class _ActivityDetailsScreenState extends State<ActivityDetailsScreen> {
     return Scaffold(
 
       appBar: AppBar(
-        title: Text(widget.sport),
+        title: Text("Organise ${widget.sport} game"),
       ),
 
       body: SingleChildScrollView(
@@ -80,7 +264,16 @@ class _ActivityDetailsScreenState extends State<ActivityDetailsScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
 
-            /// DATE
+            const Text(
+              "Time & Location",
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+
+            const SizedBox(height: 10),
+
             ListTile(
 
               leading: const Icon(Icons.calendar_month),
@@ -93,26 +286,11 @@ class _ActivityDetailsScreenState extends State<ActivityDetailsScreen> {
                     : selectedDate.toString().split(" ")[0],
               ),
 
-              onTap: () async {
-
-                final date = await showDatePicker(
-                  context: context,
-                  firstDate: DateTime.now(),
-                  lastDate: DateTime(2100),
-                  initialDate: DateTime.now(),
-                );
-
-                if (date != null) {
-                  setState(() {
-                    selectedDate = date;
-                  });
-                }
-              },
+              onTap: pickDate,
             ),
 
             const Divider(),
 
-            /// TIME
             ListTile(
 
               leading: const Icon(Icons.access_time),
@@ -122,37 +300,20 @@ class _ActivityDetailsScreenState extends State<ActivityDetailsScreen> {
               subtitle: Text(
                 startTime == null
                     ? "Add time"
-                    : "${startTime!.format(context)} - ${endTime?.format(context) ?? ""}",
+                    : "${startTime!.format(context)} - ${endTime!.format(context)}",
               ),
 
-              onTap: () async {
-
-                final start = await showTimePicker(
-                  context: context,
-                  initialTime: TimeOfDay.now(),
-                );
-
-                if (start != null) {
-
-                  final end = await showTimePicker(
-                    context: context,
-                    initialTime: start,
-                  );
-
-                  setState(() {
-                    startTime = start;
-                    endTime = end;
-                  });
-                }
-              },
+              onTap: pickTimeRange,
             ),
 
             const Divider(),
 
-            /// LOCATION
             ListTile(
+
               leading: const Icon(Icons.location_on),
+
               title: const Text("Location"),
+
               subtitle: TextField(
                 controller: locationController,
                 decoration: const InputDecoration(
@@ -164,7 +325,6 @@ class _ActivityDetailsScreenState extends State<ActivityDetailsScreen> {
 
             const Divider(),
 
-            /// COURT BOOKED
             SwitchListTile(
 
               title: const Text("Court booked"),
@@ -179,13 +339,14 @@ class _ActivityDetailsScreenState extends State<ActivityDetailsScreen> {
             ),
 
             if (courtBooked)
+
               Padding(
                 padding: const EdgeInsets.only(bottom: 16),
 
                 child: TextField(
                   controller: courtController,
                   decoration: const InputDecoration(
-                    hintText: "Court number",
+                    labelText: "Court number",
                     border: OutlineInputBorder(),
                   ),
                 ),
@@ -193,18 +354,16 @@ class _ActivityDetailsScreenState extends State<ActivityDetailsScreen> {
 
             const SizedBox(height: 10),
 
-            /// GAME DETAILS
             const Text(
-              "GAME DETAILS",
+              "Game details",
               style: TextStyle(
+                fontSize: 18,
                 fontWeight: FontWeight.bold,
-                fontSize: 16,
               ),
             ),
 
             const SizedBox(height: 12),
 
-            /// NAME
             TextField(
 
               controller: nameController,
@@ -218,7 +377,6 @@ class _ActivityDetailsScreenState extends State<ActivityDetailsScreen> {
 
             const SizedBox(height: 12),
 
-            /// DESCRIPTION
             TextField(
 
               controller: descriptionController,
@@ -233,7 +391,6 @@ class _ActivityDetailsScreenState extends State<ActivityDetailsScreen> {
 
             const SizedBox(height: 16),
 
-            /// GAME TYPE
             DropdownButtonFormField(
 
               value: gameType,
@@ -265,9 +422,8 @@ class _ActivityDetailsScreenState extends State<ActivityDetailsScreen> {
               ),
             ),
 
-            const SizedBox(height: 16),
+            const SizedBox(height: 12),
 
-            /// MIN PEOPLE
             TextField(
 
               controller: minPeopleController,
@@ -281,7 +437,6 @@ class _ActivityDetailsScreenState extends State<ActivityDetailsScreen> {
 
             const SizedBox(height: 12),
 
-            /// MAX PEOPLE
             TextField(
 
               controller: maxPeopleController,
@@ -295,7 +450,6 @@ class _ActivityDetailsScreenState extends State<ActivityDetailsScreen> {
 
             const SizedBox(height: 30),
 
-            /// CREATE BUTTON
             SizedBox(
               width: double.infinity,
               height: 50,
@@ -309,11 +463,7 @@ class _ActivityDetailsScreenState extends State<ActivityDetailsScreen> {
                   ),
                 ),
 
-                onPressed: () {
-
-                  /// later save to firestore
-
-                },
+                onPressed: () {},
 
                 child: const Text(
                   "Create Activity",
