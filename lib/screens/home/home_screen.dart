@@ -139,9 +139,9 @@ class _HomeScreenState extends State<HomeScreen> {
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
                 crossAxisCount: 4,
-                crossAxisSpacing: 10,
-                mainAxisSpacing: 12,
-                childAspectRatio: 0.75,
+                crossAxisSpacing: 5,
+                mainAxisSpacing: 5,
+                childAspectRatio: 0.8,
                 children: [
 
                   gameItem("assets/badminton.png", "Badminton"),
@@ -150,7 +150,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   gameItem("assets/paintball.png", "Paintball"),
 
                   gameItem("assets/basketball.png", "Basketball"),
-                  gameItem("assets/futsal.png", "Football"),
+                  gameItem("assets/football.png", "Football"),
                   gameItem("assets/futsal.png", "Futsal"),
                   gameItem("assets/golf.png", "Golf"),
 
@@ -201,7 +201,7 @@ class _HomeScreenState extends State<HomeScreen> {
       children: [
 
         CircleAvatar(
-          radius: 28,
+          radius: 36,
           backgroundImage: AssetImage(image),
         ),
 
