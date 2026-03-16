@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:matchly/screens/main/main_screen.dart';
 import 'package:matchly/screens/onboarding_screen.dart';
 import 'auth/login_screen.dart';
 import 'home/home_screen.dart';
@@ -52,8 +53,8 @@ class AuthWrapper extends StatelessWidget {
               return const OnboardingScreen();
             }
 
-            /// Profile completed → home
-            return const HomeScreen();
+            /// Profile completed → main
+            return const MainScreen();
           },
         );
       },
