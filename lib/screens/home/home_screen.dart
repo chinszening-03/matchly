@@ -3,6 +3,23 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../services/auth_service.dart';
 import '../activity/create_activity_screen.dart';
 
+String formatDate(Timestamp? timestamp) {
+  if (timestamp == null) return "";
+
+  final date = timestamp.toDate();
+  return "${date.day}/${date.month}/${date.year}";
+}
+
+String formatTime(Timestamp? timestamp) {
+  if (timestamp == null) return "";
+
+  final date = timestamp.toDate();
+  final hour = date.hour > 12 ? date.hour - 12 : date.hour;
+  final suffix = date.hour >= 12 ? "PM" : "AM";
+
+  return "$hour:${date.minute.toString().padLeft(2, '0')} $suffix";
+}
+
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
@@ -117,7 +134,7 @@ class _HomeScreenState extends State<HomeScreen> {
               const SizedBox(height: 10),
 
               SizedBox(
-                height: 170,
+                height: 250,
                 child: StreamBuilder<QuerySnapshot>(
                   stream: FirebaseFirestore.instance
                       .collection("activities")
@@ -237,41 +254,182 @@ class _HomeScreenState extends State<HomeScreen> {
   /// Activity Card
   Widget activityCard(QueryDocumentSnapshot doc) {
 
-    final data = doc.data() as Map<String, dynamic>;
+  final data = doc.data() as Map<String, dynamic>;
 
-    return Container(
-      width: 300,
-      margin: const EdgeInsets.only(right: 10),
+  final sport = data["sport"] ?? "";
+  final name = data["name"] ?? "Game";
+  final location = data["location"] ?? "";
+  final gameType = data["gameType"] ?? "";
 
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey.shade300),
-      ),
+  final min = data["minPeople"] ?? 0;
+  final max = data["maxPeople"] ?? 0;
 
-      padding: const EdgeInsets.all(10),
+  final price = data["price"] ?? 0;
 
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
+  final start = data["startTime"] as Timestamp?;
+  final end = data["endTime"] as Timestamp?;
 
-          Text(
-            data["sport"] ?? "",
+  return Container(
+    width: 260,
+    margin: const EdgeInsets.only(right: 12),
+
+    decoration: BoxDecoration(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(16),
+      boxShadow: [
+        BoxShadow(
+          color: Colors.black.withOpacity(0.05),
+          blurRadius: 8,
+        )
+      ],
+    ),
+
+    padding: const EdgeInsets.all(14),
+
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+
+        /// 🔵 SPORT TAG
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+
+          decoration: BoxDecoration(
+            color: const Color(0xFF0D47A1),
+            borderRadius: BorderRadius.circular(20),
+          ),
+
+          child: Text(
+            sport.toUpperCase(),
             style: const TextStyle(
+              color: Colors.white,
+              fontSize: 10,
               fontWeight: FontWeight.bold,
             ),
           ),
+        ),
 
-          const SizedBox(height: 8),
+        const SizedBox(height: 10),
 
-          Text("📅 ${data["date"] ?? ""}"),
-          Text("⏰ ${data["startTime"] ?? ""} - ${data["endTime"] ?? ""}"),
-          Text("📍 ${data["location"] ?? ""}"),
+        /// 🏸 GAME NAME
+        Text(
+          name,
+          style: const TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+          ),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
 
-        ],
-      ),
-    );
-  }
+        const SizedBox(height: 8),
+
+        /// 👥 PLAYERS + TYPE
+        Row(
+          children: [
+
+            const Icon(Icons.people, size: 14, color: Colors.grey),
+
+            const SizedBox(width: 4),
+
+            Text(
+              "$min-$max players • $gameType",
+              style: const TextStyle(
+                fontSize: 12,
+                color: Colors.grey,
+              ),
+            ),
+
+          ],
+        ),
+
+        const SizedBox(height: 6),
+
+        /// 💰 PRICE
+        if (price > 0)
+          Row(
+            children: [
+
+              const Icon(Icons.attach_money, size: 14, color: Colors.grey),
+
+              const SizedBox(width: 4),
+
+              Text(
+                "RM $price / pax",
+                style: const TextStyle(
+                  fontSize: 12,
+                  color: Colors.grey,
+                ),
+              ),
+
+            ],
+          ),
+
+        const SizedBox(height: 10),
+
+        const Divider(),
+
+        const SizedBox(height: 8),
+
+        /// 📅 DATE
+        Row(
+          children: [
+
+            const Icon(Icons.calendar_month, size: 14),
+
+            const SizedBox(width: 6),
+
+            Text(
+              formatDate(start),
+              style: const TextStyle(fontSize: 12),
+            ),
+
+          ],
+        ),
+
+        const SizedBox(height: 6),
+
+        /// ⏰ TIME
+        Row(
+          children: [
+
+            const Icon(Icons.access_time, size: 14),
+
+            const SizedBox(width: 6),
+
+            Text(
+              "${formatTime(start)} - ${formatTime(end)}",
+              style: const TextStyle(fontSize: 12),
+            ),
+
+          ],
+        ),
+
+        const SizedBox(height: 6),
+
+        /// 📍 LOCATION
+        Row(
+          children: [
+
+            const Icon(Icons.location_on, size: 14),
+
+            const SizedBox(width: 6),
+
+            Expanded(
+              child: Text(
+                location,
+                style: const TextStyle(fontSize: 12),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+
+          ],
+        ),
+
+      ],
+    ),
+  );
+}
 
   Widget statBox(IconData icon, String text) {
     return Container(
