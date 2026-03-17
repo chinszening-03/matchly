@@ -364,9 +364,92 @@ class _ActivityDetailsScreenState extends State<ActivityDetailsScreen> {
                       }
                     },
                   ),
-                ],
+
+                  const Divider(),
+                  
+                  /// ===== COURT BOOKED =====
+const SizedBox(height: 10),
+
+Row(
+  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+  children: [
+
+    const Text(
+      "Court booked",
+      style: TextStyle(fontSize: 16),
+    ),
+
+    GestureDetector(
+      onTap: () {
+        setState(() {
+          courtBooked = !courtBooked;
+        });
+      },
+
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 250),
+        width: 50,
+        height: 28,
+        padding: const EdgeInsets.all(4),
+
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(20),
+          color: courtBooked
+              ? const Color(0xFF00BFA5)
+              : Colors.grey.shade300,
+        ),
+
+        child: Align(
+          alignment:
+              courtBooked ? Alignment.centerRight : Alignment.centerLeft,
+
+          child: Container(
+            width: 20,
+            height: 20,
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              shape: BoxShape.circle,
+            ),
+          ),
+        ),
+      ),
+    ),
+  ],
+),
+
+/// ===== COURT INPUT (ANIMATED) =====
+AnimatedSwitcher(
+  duration: const Duration(milliseconds: 250),
+
+  child: courtBooked
+      ? Padding(
+          padding: const EdgeInsets.only(top: 12),
+
+          child: TextField(
+            controller: courtController,
+
+            decoration: InputDecoration(
+              labelText: "Court details",
+              hintText: "e.g. Court 3, Indoor Hall",
+              prefixIcon: const Icon(Icons.sports_tennis),
+
+              filled: true,
+              fillColor: Colors.grey[100],
+
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide.none,
               ),
             ),
+          ),
+        )
+      : const SizedBox(),
+),
+                ],
+              ),
+              
+            ),
+
 
             /// ========= GAME DETAILS =========
             sectionTitle("Game Details"),
@@ -449,14 +532,18 @@ class _ActivityDetailsScreenState extends State<ActivityDetailsScreen> {
                 ),
                 onPressed: () async {
 
+                  int min = int.tryParse(minPeopleController.text) ?? 0;
+                  int max = int.tryParse(maxPeopleController.text) ?? 0;
+
                   if (locationController.text.isEmpty ||
                       startTime == null ||
                       endTime == null ||
                       selectedDate == null ||
-                      nameController.text.isEmpty) {
+                      nameController.text.isEmpty ||
+                      max < min) {
 
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text("Please fill required fields")),
+                      const SnackBar(content: Text("Max players must be ≥ Min players")),
                     );
                     return;
                   }
@@ -595,6 +682,7 @@ class _ActivityDetailsScreenState extends State<ActivityDetailsScreen> {
                     setState(() {
                       value--;
                       controller.text = value.toString();
+                      _validateMinMax();
                     });
                   }
                 },
@@ -623,4 +711,14 @@ class _ActivityDetailsScreenState extends State<ActivityDetailsScreen> {
     if (type == "Doubles") minPeopleController.text = "4";
     if (type == "Social") minPeopleController.text = "5";
   }
+
+  void _validateMinMax() {
+
+  int min = int.tryParse(minPeopleController.text) ?? 0;
+  int max = int.tryParse(maxPeopleController.text) ?? 0;
+
+  if (max < min) {
+    maxPeopleController.text = min.toString();
+  }
+}
 }
