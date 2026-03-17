@@ -22,17 +22,17 @@ class _CreateActivityScreenState extends State<CreateActivityScreen> {
     {"name": "Pilates", "icon": "assets/pilates.png"},
     {"name": "Paintball", "icon": "assets/paintball.png"},
     {"name": "Golf", "icon": "assets/golf.png"},
-    {"name": "Hiking", "icon": "assets/badminton.png"},
+    {"name": "Hiking", "icon": "assets/hiking.png"},
     {"name": "Football", "icon": "assets/football.png"},
     {"name": "Futsal", "icon": "assets/futsal.png"},
-    {"name": "Bowling", "icon": "assets/badminton.png"},
-    {"name": "Bouldering", "icon": "assets/badminton.png"},
-    {"name": "Dodgeball", "icon": "assets/badminton.png"},
-    {"name": "Running", "icon": "assets/badminton.png"},
-    {"name": "Squash", "icon": "assets/badminton.png"},
-    {"name": "Table Tennis", "icon": "assets/badminton.png"},
-    {"name": "Frisbee", "icon": "assets/badminton.png"},
-    {"name": "Volleyball", "icon": "assets/badminton.png"},
+    {"name": "Bowling", "icon": "assets/bowling.png"},
+    {"name": "Bouldering", "icon": "assets/bouldering.png"},
+    {"name": "Dodgeball", "icon": "assets/bouldering.png"},
+    {"name": "Running", "icon": "assets/running.png"},
+    {"name": "Squash", "icon": "assets/squash.png"},
+    {"name": "Table Tennis", "icon": "assets/tabletennis.png"},
+    {"name": "Frisbee", "icon": "assets/frisbee.png"},
+    {"name": "Volleyball", "icon": "assets/volleyball.png"},
   ];
 
   @override
@@ -111,7 +111,7 @@ class _CreateActivityScreenState extends State<CreateActivityScreen> {
                   crossAxisCount: 2,
                   crossAxisSpacing: 14,
                   mainAxisSpacing: 14,
-                  childAspectRatio: 1,
+                  childAspectRatio: 0.75,
                 ),
 
                 itemBuilder: (context, index) {
@@ -151,26 +151,25 @@ class _CreateActivityScreenState extends State<CreateActivityScreen> {
                     },
 
                 style: ButtonStyle(
+                      backgroundColor: WidgetStateProperty.resolveWith((states) {
 
-                backgroundColor: MaterialStateProperty.resolveWith((states) {
+                        if (states.contains(WidgetState.disabled)) {
+                          return Colors.grey.shade400;
+                        }
 
-                  if (states.contains(MaterialState.disabled)) {
-                    return Colors.grey.shade400;
-                  }
+                        if (states.contains(WidgetState.hovered)) {
+                          return const Color(0xFF1565C0);
+                        }
 
-                  if (states.contains(MaterialState.hovered)) {
-                    return const Color(0xFF1565C0); // darker blue on hover
-                  }
+                        return const Color(0xFF0D47A1);
+                      }),
 
-                  return const Color(0xFF0D47A1); // normal blue
-                }),
-
-                shape: MaterialStateProperty.all(
-                  RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-              ),
+                      shape: WidgetStateProperty.all(
+                        RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                    ),
 
 
                 child: const Text("Next", style:TextStyle(color: Colors.white,)) 
@@ -185,72 +184,87 @@ class _CreateActivityScreenState extends State<CreateActivityScreen> {
     );
   }
 
-  Widget sportCard(String sport, String icon) {
+    Widget sportCard(String sport, String icon) {
 
     final selected = sport == selectedSport;
 
     return GestureDetector(
 
       onTap: () {
-
         setState(() {
           selectedSport = sport;
         });
-
       },
 
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
+      child: Column(
+        children: [
 
-        decoration: BoxDecoration(
+          /// IMAGE BOX
+          Expanded(
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
 
-          color: selected
-              ? const Color(0xFF34C759)
-              : Colors.white,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: selected
+                      ? const Color(0xFF0D47A1)
+                      : Colors.grey.shade300,
+                  width: 2,
+                ),
+              ),
 
-          borderRadius: BorderRadius.circular(20),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(18),
 
-          border: Border.all(
-            color: selected
-                ? const Color(0xFF34C759)
-                : Colors.grey.shade300,
-            width: 2,
-          ),
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
 
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.05),
-              blurRadius: 6,
-            )
-          ],
-        ),
+                    /// FULL IMAGE
+                    Image.asset(
+                      icon,
+                      fit: BoxFit.cover,
+                    ),
 
-        padding: const EdgeInsets.all(20),
+                    /// DARK OVERLAY WHEN SELECTED
+                    if (selected)
+                      Container(
+                        color: Colors.black.withValues(alpha: 0.3),
+                      ),
 
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-
-            Image.asset(
-              icon,
-              height: 40,
-            ),
-
-            const SizedBox(height: 12),
-
-            Text(
-              sport,
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w500,
-                color: selected
-                    ? Colors.white
-                    : Colors.black,
+                    /// CHECK ICON
+                    if (selected)
+                      const Positioned(
+                        top: 8,
+                        right: 8,
+                        child: Icon(
+                          Icons.check_circle,
+                          color: Colors.white,
+                        ),
+                      ),
+                  ],
+                ),
               ),
             ),
+          ),
 
-          ],
-        ),
+          const SizedBox(height: 6),
+
+          /// TEXT BELOW
+          Text(
+            sport,
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w500,
+              color: selected
+                  ? const Color(0xFF0D47A1)
+                  : Colors.black,
+            ),
+            textAlign: TextAlign.center,
+          ),
+
+        ],
       ),
     );
   }
