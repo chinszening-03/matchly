@@ -240,7 +240,7 @@ class _HomeScreenState extends State<HomeScreen> {
     final data = doc.data() as Map<String, dynamic>;
 
     return Container(
-      width: 150,
+      width: 300,
       margin: const EdgeInsets.only(right: 10),
 
       decoration: BoxDecoration(

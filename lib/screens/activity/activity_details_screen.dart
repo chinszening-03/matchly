@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
+import 'package:matchly/screens/home/home_screen.dart';
 import 'location_search_screen.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+
 class ActivityDetailsScreen extends StatefulWidget {
 
   final String sport;
@@ -474,7 +477,69 @@ class _ActivityDetailsScreenState extends State<ActivityDetailsScreen> {
                   ),
                 ),
 
-                onPressed: () {},
+                onPressed: () async {
+
+                  if (locationController.text.isEmpty ||
+                      startTime == null ||
+                      endTime == null ||
+                      selectedDate == null ||
+                      nameController.text.isEmpty) {
+
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text("Please fill all required fields")),
+                    );
+                    return;
+                  }
+
+                  final startDateTime = DateTime(
+                    selectedDate!.year,
+                    selectedDate!.month,
+                    selectedDate!.day,
+                    startTime!.hour,
+                    startTime!.minute,
+                  );
+
+                  final endDateTime = DateTime(
+                    selectedDate!.year,
+                    selectedDate!.month,
+                    selectedDate!.day,
+                    endTime!.hour,
+                    endTime!.minute,
+                  );
+
+                  /// Fix overnight case
+                  final finalEnd = endDateTime.isBefore(startDateTime)
+                      ? endDateTime.add(const Duration(days: 1))
+                      : endDateTime;
+
+                  await FirebaseFirestore.instance.collection("activities").add({
+
+                    "sport": widget.sport,
+                    "name": nameController.text,
+                    "description": descriptionController.text,
+                    "location": locationController.text,
+                    "court": courtController.text,
+                    "courtBooked": courtBooked,
+
+                    "gameType": gameType,
+                    "minPeople": int.tryParse(minPeopleController.text) ?? 0,
+                    "maxPeople": int.tryParse(maxPeopleController.text) ?? 0,
+
+                    "startTime": startDateTime,
+                    "endTime": finalEnd,
+                    "date": selectedDate,
+
+                    "createdAt": Timestamp.now(),
+                  });
+
+                  /// Go back to HomeScreen
+                  Navigator.pushReplacement(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const HomeScreen(),
+                    ),
+                  );
+                },
 
                 child: const Text(
                   "Create Activity",
