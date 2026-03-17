@@ -1,3 +1,5 @@
+import 'dart:developer';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_google_places_sdk/flutter_google_places_sdk.dart';
 
@@ -36,7 +38,7 @@ class _LocationSearchScreenState extends State<LocationSearchScreen> {
       });
 
     } catch (e) {
-      print("ERROR: $e");
+      log("ERROR: $e");
     }
 
     setState(() => loading = false);
@@ -52,11 +54,13 @@ class _LocationSearchScreenState extends State<LocationSearchScreen> {
     final lat = detail.place?.latLng?.lat;
     final lng = detail.place?.latLng?.lng;
 
-    Navigator.pop(context, {
-      "name": prediction.fullText,
-      "lat": lat,
-      "lng": lng,
-    });
+    if (mounted) {
+      Navigator.pop(context, {
+        "name": prediction.fullText,
+        "lat": lat,
+        "lng": lng,
+      });
+    }
   }
 
   @override
@@ -104,7 +108,7 @@ class _LocationSearchScreenState extends State<LocationSearchScreen> {
 
                   title: Text(place.primaryText),
 
-                  subtitle: Text(place.secondaryText ?? ""),
+                  subtitle: Text(place.secondaryText),
 
                   onTap: () => selectPlace(place),
                 );
