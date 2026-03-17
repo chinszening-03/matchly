@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../services/auth_service.dart';
-import '../activity/create_activity_screen.dart';
+import '../activity/choose_sports.dart';
 
 String formatDate(Timestamp? timestamp) {
   if (timestamp == null) return "";
