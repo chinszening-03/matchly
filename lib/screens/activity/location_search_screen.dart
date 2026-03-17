@@ -1,5 +1,3 @@
-import 'dart:developer';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_google_places_sdk/flutter_google_places_sdk.dart';
 
@@ -23,7 +21,10 @@ class _LocationSearchScreenState extends State<LocationSearchScreen> {
   void searchPlaces(String input) async {
 
     if (input.isEmpty) {
-      setState(() => results = []);
+      setState(() {
+        results = [];
+        loading = false;
+      });
       return;
     }
 
@@ -33,13 +34,20 @@ class _LocationSearchScreenState extends State<LocationSearchScreen> {
 
       final response = await places.findAutocompletePredictions(input);
 
+      if (!mounted) return;
+
       setState(() {
         results = response.predictions;
       });
 
     } catch (e) {
-      log("ERROR: $e");
+
+      debugPrint("ERROR: $e");
+
     }
+
+    /// 👇 outside finally
+    if (!mounted) return;
 
     setState(() => loading = false);
   }
@@ -47,7 +55,7 @@ class _LocationSearchScreenState extends State<LocationSearchScreen> {
   Future<void> selectPlace(AutocompletePrediction prediction) async {
 
     final detail = await places.fetchPlace(
-      prediction.placeId!,
+      prediction.placeId,
       fields: [PlaceField.Location],
     );
 
