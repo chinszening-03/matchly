@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
-
+import 'location_search_screen.dart';
 class ActivityDetailsScreen extends StatefulWidget {
 
   final String sport;
@@ -309,18 +309,29 @@ class _ActivityDetailsScreenState extends State<ActivityDetailsScreen> {
             const Divider(),
 
             ListTile(
-
               leading: const Icon(Icons.location_on),
-
               title: const Text("Location"),
-
-              subtitle: TextField(
-                controller: locationController,
-                decoration: const InputDecoration(
-                  hintText: "Search a city, town, venue...",
-                  border: InputBorder.none,
-                ),
+              subtitle: Text(
+                locationController.text.isEmpty
+                    ? "Search a venue"
+                    : locationController.text,
               ),
+              onTap: () async {
+
+                final result = await Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const LocationSearchScreen(),
+                  ),
+                );
+
+                if (result != null) {
+
+                  setState(() {
+                    locationController.text = result["name"];
+                  });
+                }
+              },
             ),
 
             const Divider(),
