@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import '../../services/auth_service.dart';
+import '../../services/auth_service.dart'; 
 
 class ActivityListScreen extends StatefulWidget {
   // 1. Add the sport parameter here
@@ -12,19 +12,19 @@ class ActivityListScreen extends StatefulWidget {
   State<ActivityListScreen> createState() => _ActivityListScreenState();
 }
   
-  String formatDate(Timestamp? timestamp) {
-    if (timestamp == null) return "";
-    final date = timestamp.toDate();
-    return "${date.day}/${date.month}/${date.year}";
-  }
+String formatDate(Timestamp? timestamp) {
+  if (timestamp == null) return "";
+  final date = timestamp.toDate();
+  return "${date.day}/${date.month}/${date.year}";
+}
 
-  String formatTime(Timestamp? timestamp) {
-    if (timestamp == null) return "";
-    final date = timestamp.toDate();
-    final hour = date.hour > 12 ? date.hour - 12 : date.hour;
-    final suffix = date.hour >= 12 ? "PM" : "AM";
-    return "$hour:${date.minute.toString().padLeft(2, '0')} $suffix";
-  }
+String formatTime(Timestamp? timestamp) {
+  if (timestamp == null) return "";
+  final date = timestamp.toDate();
+  final hour = date.hour > 12 ? date.hour - 12 : date.hour;
+  final suffix = date.hour >= 12 ? "PM" : "AM";
+  return "$hour:${date.minute.toString().padLeft(2, '0')} $suffix";
+}
 
 class _ActivityListScreenState extends State<ActivityListScreen> {
   DateTime _selectedDate = DateTime.now();
@@ -53,7 +53,7 @@ class _ActivityListScreenState extends State<ActivityListScreen> {
       );
     }
   }
-  
+
   bool _isSameDay(DateTime date1, DateTime date2) {
     return date1.year == date2.year &&
         date1.month == date2.month &&
@@ -209,12 +209,21 @@ class _ActivityListScreenState extends State<ActivityListScreen> {
     final location = data["location"] ?? "";
     final gameType = data["gameType"] ?? "";
 
-    final min = data["minPeople"] ?? 0;
     final max = data["maxPeople"] ?? 0;
     final price = data["price"] ?? 0;
 
     final start = data["startTime"] as Timestamp?;
     final end = data["endTime"] as Timestamp?;
+
+    // --- GRAB USER AND PARTICIPANT INFO ---
+    final currentUserId = AuthService().getCurrentUser()?.uid;
+    final createdBy = data["createdBy"] ?? "";
+    final participants = List<String>.from(data["participants"] ?? []);
+    
+    // --- CHECK STATES FOR THE BUTTON ---
+    final isCreator = currentUserId == createdBy;
+    final hasJoined = participants.contains(currentUserId);
+    final isFull = participants.length >= max;
 
     return Container(
       width: double.infinity, // Changed to fill the screen width
@@ -270,7 +279,7 @@ class _ActivityListScreenState extends State<ActivityListScreen> {
               const Icon(Icons.people, size: 14, color: Colors.grey),
               const SizedBox(width: 4),
               Text(
-                "$min-$max players • $gameType",
+                "${participants.length}/$max players • $gameType", // Show current participant count
                 style: const TextStyle(
                   fontSize: 12,
                   color: Colors.grey,
@@ -339,6 +348,51 @@ class _ActivityListScreenState extends State<ActivityListScreen> {
               ),
             ],
           ),
+          
+          const SizedBox(height: 16),
+
+          /// 🔵 JOIN BUTTON UI
+          // If the user is NOT the creator, show the action button row
+          if (!isCreator)
+            SizedBox(
+              width: double.infinity,
+              height: 45,
+              child: ElevatedButton(
+                // Disable button if they already joined or if it's full
+                onPressed: (hasJoined || isFull) ? null : () => joinActivity(doc.id),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF0D47A1),
+                  disabledBackgroundColor: Colors.grey.shade300,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                ),
+                child: Text(
+                  hasJoined
+                      ? "Joined"
+                      : isFull
+                          ? "Game Full"
+                          : "Join Game",
+                  style: TextStyle(
+                    color: (hasJoined || isFull) ? Colors.grey.shade600 : Colors.white,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ),
+            
+          // If they ARE the creator, show a subtle label instead of the button
+          if (isCreator)
+            Center(
+              child: Text(
+                "You are the host",
+                style: TextStyle(
+                  color: Colors.grey.shade500,
+                  fontSize: 12,
+                  fontStyle: FontStyle.italic,
+                ),
+              ),
+            ),
         ],
       ),
     );
