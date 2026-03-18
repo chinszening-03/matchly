@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:intl/intl.dart';
 
 class ActivityListScreen extends StatefulWidget {
+  // 1. Add the sport parameter here
   final String sport;
 
   const ActivityListScreen({super.key, required this.sport});
@@ -11,136 +11,160 @@ class ActivityListScreen extends StatefulWidget {
   State<ActivityListScreen> createState() => _ActivityListScreenState();
 }
 
+  String formatDate(Timestamp? timestamp) {
+    if (timestamp == null) return "";
+    final date = timestamp.toDate();
+    return "${date.day}/${date.month}/${date.year}";
+  }
+
+  String formatTime(Timestamp? timestamp) {
+    if (timestamp == null) return "";
+    final date = timestamp.toDate();
+    final hour = date.hour > 12 ? date.hour - 12 : date.hour;
+    final suffix = date.hour >= 12 ? "PM" : "AM";
+    return "$hour:${date.minute.toString().padLeft(2, '0')} $suffix";
+  }
+
 class _ActivityListScreenState extends State<ActivityListScreen> {
+  DateTime _selectedDate = DateTime.now();
 
-  String selectedSport = "";
-  String sortBy = "Time";
-  bool showFull = false;
-
-  RangeValues priceRange = const RangeValues(0, 100);
-  RangeValues slotRange = const RangeValues(1, 10);
-
-  DateTime? selectedDate;
-
-  final List<String> sports = [
-    "Badminton","Pickleball","Basketball","Tennis","Pilates",
-    "Paintball","Golf","Hiking","Football","Futsal",
-    "Bowling","Bouldering","Dodgeball","Running","Squash",
-    "Table Tennis","Frisbee","Volleyball"
-  ];
-
-  final List<String> activityTypes = ["All", "Singles", "Doubles", "Social"];
-  String selectedType = "All";
-
-  @override
-  void initState() {
-    super.initState();
-    selectedSport = widget.sport;
+  bool _isSameDay(DateTime date1, DateTime date2) {
+    return date1.year == date2.year &&
+        date1.month == date2.month &&
+        date1.day == date2.day;
   }
 
-  /// ================= DATE PICKER =================
-  Future<void> pickDate() async {
-    final date = await showDatePicker(
-      context: context,
-      firstDate: DateTime.now(),
-      lastDate: DateTime(2100),
-      initialDate: DateTime.now(),
-    );
-
-    if (date != null) {
-      setState(() => selectedDate = date);
-    }
+  String _formatDayName(DateTime date) {
+    if (_isSameDay(date, DateTime.now())) return "Today";
+    if (_isSameDay(date, DateTime.now().add(const Duration(days: 1)))) return "Tmr";
+    List<String> days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+    return days[date.weekday - 1];
   }
 
-  /// ================= BUILD =================
+  String _formatMonth(int month) {
+    List<String> months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    return months[month - 1];
+  }
+
   @override
   Widget build(BuildContext context) {
+    DateTime startOfDay = DateTime(_selectedDate.year, _selectedDate.month, _selectedDate.day);
+    DateTime endOfDay = startOfDay.add(const Duration(days: 1)).subtract(const Duration(seconds: 1));
 
+    DateTime today = DateTime.now();
+    int daysInMonth = DateTime(today.year, today.month + 1, today.day).difference(today).inDays;
+    
     return Scaffold(
+      backgroundColor: Colors.grey[200],
       appBar: AppBar(
-        title: Text(selectedSport),
+        // 2. Display the selected sport in the App Bar
+        title: Text(widget.sport, style: const TextStyle(color: Colors.black)),
+        backgroundColor: Colors.white,
+        elevation: 0,
+        iconTheme: const IconThemeData(color: Colors.black),
       ),
-
       body: Column(
         children: [
-
-          /// ================= FILTER BAR =================
-          SizedBox(
-            height: 120,
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.all(10),
-
-              child: Row(
-                children: [
-
-                  filterButton("📍 Map", () {}),
-                  filterButton("📌 Pin Game", () {}),
-
-                  filterButton("Sort: $sortBy", () {
-                    showSortDialog();
-                  }),
-
-                  filterButton("Date", pickDate),
-
-                  filterButton("Sport", showSportPicker),
-
-                  filterButton("Type", showTypePicker),
-
-                  filterButton("Price", showPriceSlider),
-
-                  filterButton("Slots", showSlotSlider),
-
-                  filterButton(
-                    showFull ? "Hide Full" : "Show Full",
-                        () {
-                      setState(() {
-                        showFull = !showFull;
-                      });
-                    },
-                  ),
-                ],
-              ),
+          // Filter Bar Placeholder
+          Container(
+            padding: const EdgeInsets.all(16),
+            color: Colors.white,
+            child: const Row(
+              children: [
+                Icon(Icons.filter_list),
+                SizedBox(width: 8),
+                Text("Your Filter Bar Here", style: TextStyle(fontWeight: FontWeight.bold)),
+              ],
             ),
           ),
 
-          const Divider(),
+          // The Date Filter Row
+          Container(
+            height: 70,
+            color: Colors.white,
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: ListView.builder(
+              scrollDirection: Axis.horizontal,
+              itemCount: daysInMonth, 
+              itemBuilder: (context, index) {
+                DateTime date = DateTime.now().add(Duration(days: index));
+                bool isSelected = _isSameDay(date, _selectedDate);
 
-          /// ================= ACTIVITY LIST =================
+                return GestureDetector(
+                  onTap: () {
+                    setState(() {
+                      _selectedDate = date;
+                    });
+                  },
+                  child: Container(
+                    width: 70,
+                    margin: const EdgeInsets.only(left: 12),
+                    decoration: BoxDecoration(
+                      color: isSelected ? const Color(0xFF0D47A1) : Colors.white,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: isSelected ? const Color(0xFF0D47A1) : Colors.grey.shade300,
+                      ),
+                    ),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          _formatDayName(date),
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            color: isSelected ? Colors.white : Colors.grey.shade600,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          "${date.day} ${_formatMonth(date.month)}",
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: isSelected ? Colors.white : Colors.black,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+
+          const SizedBox(height: 10),
+
+          // StreamBuilder with Sport AND Date Filter
           Expanded(
             child: StreamBuilder<QuerySnapshot>(
               stream: FirebaseFirestore.instance
                   .collection("activities")
-                  .orderBy("createdAt", descending: true)
+                  // 3. Filter by the selected sport
+                  .where("sport", isEqualTo: widget.sport) 
+                  .where("startTime", isGreaterThanOrEqualTo: startOfDay)
+                  .where("startTime", isLessThanOrEqualTo: endOfDay)
+                  .orderBy("startTime") 
                   .snapshots(),
-
               builder: (context, snapshot) {
-
-                if (!snapshot.hasData) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
                   return const Center(child: CircularProgressIndicator());
                 }
 
-                final docs = snapshot.data!.docs.where((doc) {
-
-                  final data = doc.data() as Map<String, dynamic>;
-
-                  /// SPORT FILTER
-                  if (data["sport"] != selectedSport) return false;
-
-                  /// TYPE FILTER
-                  if (selectedType != "All" &&
-                      data["gameType"] != selectedType) return false;
-
-                  return true;
-
-                }).toList();
+                if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                  return Center(
+                    child: Text("No ${widget.sport} games found for this date.", style: const TextStyle(color: Colors.grey)),
+                  );
+                }
 
                 return ListView.builder(
-                  itemCount: docs.length,
-                  padding: const EdgeInsets.all(12),
-
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  itemCount: snapshot.data!.docs.length,
                   itemBuilder: (context, index) {
-                    return activityCard(docs[index]);
+                    var doc = snapshot.data!.docs[index];
+                    
+                    // Call the custom UI card here!
+                    return activityCard(doc);
                   },
                 );
               },
@@ -151,203 +175,145 @@ class _ActivityListScreenState extends State<ActivityListScreen> {
     );
   }
 
-  /// ================= FILTER BUTTON =================
-  Widget filterButton(String text, VoidCallback onTap) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        margin: const EdgeInsets.only(right: 10),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: Colors.grey.shade300),
-        ),
-
-        child: Text(text),
-      ),
-    );
-  }
-
-  /// ================= ACTIVITY CARD =================
   Widget activityCard(QueryDocumentSnapshot doc) {
-
     final data = doc.data() as Map<String, dynamic>;
 
-    final Timestamp? startTs = data["startTime"];
-    final Timestamp? endTs = data["endTime"];
+    final sport = data["sport"] ?? "";
+    final name = data["name"] ?? "Game";
+    final location = data["location"] ?? "";
+    final gameType = data["gameType"] ?? "";
 
-    final start = startTs?.toDate();
-    final end = endTs?.toDate();
+    final min = data["minPeople"] ?? 0;
+    final max = data["maxPeople"] ?? 0;
+    final price = data["price"] ?? 0;
+
+    final start = data["startTime"] as Timestamp?;
+    final end = data["endTime"] as Timestamp?;
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(14),
+      width: double.infinity, // Changed to fill the screen width
+      margin: const EdgeInsets.only(bottom: 16), // Changed to bottom margin for vertical scrolling
 
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.05),
-            blurRadius: 6,
+            blurRadius: 8,
           )
         ],
       ),
-
+      padding: const EdgeInsets.all(14),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-
-          /// TOP
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-
-              Text(
-                data["name"] ?? "",
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                ),
+          /// 🔵 SPORT TAG
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            decoration: BoxDecoration(
+              color: const Color(0xFF0D47A1),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Text(
+              sport.toUpperCase(),
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 10,
+                fontWeight: FontWeight.bold,
               ),
+            ),
+          ),
+          const SizedBox(height: 10),
 
+          /// 🏸 GAME NAME
+          Text(
+            name,
+            style: const TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          const SizedBox(height: 8),
+
+          /// 👥 PLAYERS + TYPE
+          Row(
+            children: [
+              const Icon(Icons.people, size: 14, color: Colors.grey),
+              const SizedBox(width: 4),
               Text(
-                data["gameType"] ?? "",
-                style: const TextStyle(color: Colors.grey),
+                "$min-$max players • $gameType",
+                style: const TextStyle(
+                  fontSize: 12,
+                  color: Colors.grey,
+                ),
               ),
             ],
           ),
-
           const SizedBox(height: 6),
 
-          Text("🏸 ${data["sport"]}"),
-          Text("👥 ${data["minPeople"]} - ${data["maxPeople"]} players"),
-          Text("📍 ${data["location"]}"),
-
-          if (start != null && end != null)
-            Text(
-              "⏰ ${DateFormat("hh:mm a").format(start)} - ${DateFormat("hh:mm a").format(end)}",
+          /// 💰 PRICE
+          if (price > 0)
+            Row(
+              children: [
+                const Icon(Icons.attach_money, size: 14, color: Colors.grey),
+                const SizedBox(width: 4),
+                Text(
+                  "RM $price / pax",
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey,
+                  ),
+                ),
+              ],
             ),
-
-          if (data["price"] != null)
-            Text("💰 RM ${data["price"]}"),
-
           const SizedBox(height: 10),
+          const Divider(),
+          const SizedBox(height: 8),
 
-          /// JOIN BUTTON
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              onPressed: () {
-
-                /// TODO: join logic later
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF0D47A1),
+          /// 📅 DATE
+          Row(
+            children: [
+              const Icon(Icons.calendar_month, size: 14),
+              const SizedBox(width: 6),
+              Text(
+                formatDate(start),
+                style: const TextStyle(fontSize: 12),
               ),
-              child: const Text("Join"),
-            ),
+            ],
+          ),
+          const SizedBox(height: 6),
+
+          /// ⏰ TIME
+          Row(
+            children: [
+              const Icon(Icons.access_time, size: 14),
+              const SizedBox(width: 6),
+              Text(
+                "${formatTime(start)} - ${formatTime(end)}",
+                style: const TextStyle(fontSize: 12),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+
+          /// 📍 LOCATION
+          Row(
+            children: [
+              const Icon(Icons.location_on, size: 14),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  location,
+                  style: const TextStyle(fontSize: 12),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
           ),
         ],
-      ),
-    );
-  }
-
-  /// ================= SORT =================
-  void showSortDialog() {
-    showModalBottomSheet(
-      context: context,
-      builder: (_) => Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          ListTile(title: const Text("Time"), onTap: () {
-            setState(() => sortBy = "Time");
-            Navigator.pop(context);
-          }),
-          ListTile(title: const Text("Distance"), onTap: () {
-            setState(() => sortBy = "Distance");
-            Navigator.pop(context);
-          }),
-        ],
-      ),
-    );
-  }
-
-  /// ================= SPORT PICKER =================
-  void showSportPicker() {
-    showModalBottomSheet(
-      context: context,
-      builder: (_) => ListView(
-        children: sports.map((sport) {
-          return ListTile(
-            title: Text(sport),
-            onTap: () {
-              setState(() => selectedSport = sport);
-              Navigator.pop(context);
-            },
-          );
-        }).toList(),
-      ),
-    );
-  }
-
-  /// ================= TYPE PICKER =================
-  void showTypePicker() {
-    showModalBottomSheet(
-      context: context,
-      builder: (_) => Column(
-        mainAxisSize: MainAxisSize.min,
-        children: activityTypes.map((type) {
-          return ListTile(
-            title: Text(type),
-            onTap: () {
-              setState(() => selectedType = type);
-              Navigator.pop(context);
-            },
-          );
-        }).toList(),
-      ),
-    );
-  }
-
-  /// ================= PRICE =================
-  void showPriceSlider() {
-    showModalBottomSheet(
-      context: context,
-      builder: (_) => RangeSlider(
-        values: priceRange,
-        min: 0,
-        max: 200,
-        divisions: 20,
-        labels: RangeLabels(
-          priceRange.start.toString(),
-          priceRange.end.toString(),
-        ),
-        onChanged: (value) {
-          setState(() => priceRange = value);
-        },
-      ),
-    );
-  }
-
-  /// ================= SLOT =================
-  void showSlotSlider() {
-    showModalBottomSheet(
-      context: context,
-      builder: (_) => RangeSlider(
-        values: slotRange,
-        min: 1,
-        max: 10,
-        divisions: 9,
-        labels: RangeLabels(
-          slotRange.start.toString(),
-          slotRange.end.toString(),
-        ),
-        onChanged: (value) {
-          setState(() => slotRange = value);
-        },
       ),
     );
   }
