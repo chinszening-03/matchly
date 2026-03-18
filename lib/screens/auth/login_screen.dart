@@ -14,28 +14,27 @@ class _LoginScreenState extends State<LoginScreen> {
   bool loading = false;
 
   Future<void> googleLogin() async {
-
     setState(() {
       loading = true;
     });
 
     final user = await AuthService().signInWithGoogle();
 
+    // 🛑 Add this check before calling setState after an 'await'
+    if (!mounted) return;
+
     setState(() {
       loading = false;
     });
 
     if (user != null) {
-
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
           builder: (_) => const HomeScreen(),
         ),
       );
-
     } else {
-
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text("Google sign-in failed"),
