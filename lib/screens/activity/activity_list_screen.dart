@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../../services/auth_service.dart';
 
 class ActivityListScreen extends StatefulWidget {
   // 1. Add the sport parameter here
@@ -10,7 +11,7 @@ class ActivityListScreen extends StatefulWidget {
   @override
   State<ActivityListScreen> createState() => _ActivityListScreenState();
 }
-
+  
   String formatDate(Timestamp? timestamp) {
     if (timestamp == null) return "";
     final date = timestamp.toDate();
@@ -28,6 +29,31 @@ class ActivityListScreen extends StatefulWidget {
 class _ActivityListScreenState extends State<ActivityListScreen> {
   DateTime _selectedDate = DateTime.now();
 
+  Future<void> joinActivity(String docId) async {
+    final currentUserId = AuthService().getCurrentUser()?.uid;
+    if (currentUserId == null) return;
+
+    try {
+      await FirebaseFirestore.instance
+          .collection("activities")
+          .doc(docId)
+          .update({
+        // arrayUnion automatically adds the user only if they aren't already in the list
+        "participants": FieldValue.arrayUnion([currentUserId])
+      });
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Successfully joined the game!")),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Error joining game: $e")),
+      );
+    }
+  }
+  
   bool _isSameDay(DateTime date1, DateTime date2) {
     return date1.year == date2.year &&
         date1.month == date2.month &&

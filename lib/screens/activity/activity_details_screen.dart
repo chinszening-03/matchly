@@ -4,7 +4,7 @@ import 'package:matchly/screens/home/home_screen.dart';
 import 'location_search_screen.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
-
+import '../../services/auth_service.dart';
 
 class ActivityDetailsScreen extends StatefulWidget {
   final String sport;
@@ -568,6 +568,8 @@ AnimatedSwitcher(
                       ? endDateTime.add(const Duration(days: 1))
                       : endDateTime;
 
+                  final currentUserId = AuthService().getCurrentUser()?.uid;
+
                   await FirebaseFirestore.instance.collection("activities").add({
 
                     "sport": widget.sport,
@@ -588,6 +590,8 @@ AnimatedSwitcher(
                     "date": selectedDate,
 
                     "createdAt": Timestamp.now(),
+                    "createdBy": currentUserId, 
+                    "participants": [currentUserId],
                   });
 
                   Navigator.pushAndRemoveUntil(

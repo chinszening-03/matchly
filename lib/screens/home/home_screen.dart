@@ -40,13 +40,13 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> loadUserName() async {
 
-    final uid = AuthService().getCurrentUser()?.uid;
+    final currentUserId = AuthService().getCurrentUser()?.uid;
 
-    if (uid == null) return;
+    if (currentUserId == null) return;
 
     final doc = await FirebaseFirestore.instance
         .collection("users")
-        .doc(uid)
+        .doc(currentUserId)
         .get();
 
     setState(() {
@@ -56,6 +56,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+
+    final currentUserId = AuthService().getCurrentUser()?.uid;
 
     return Scaffold(
       backgroundColor: Colors.grey[200],
@@ -139,21 +141,37 @@ class _HomeScreenState extends State<HomeScreen> {
                 child: StreamBuilder<QuerySnapshot>(
                   stream: FirebaseFirestore.instance
                       .collection("activities")
+                      // Simply check if the user is in the participants array!
+                      // This handles both games they created AND games they joined.
+                      .where("participants", arrayContains: currentUserId)
                       .orderBy("createdAt", descending: true)
                       .snapshots(),
                   builder: (context, snapshot) {
+                    
+                    // Add a loading indicator so you know it's working
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return const Center(child: CircularProgressIndicator());
+                    }
 
                     List<Widget> cards = [];
 
-                    /// Create activity card
+                    /// Create activity card (always first)
                     cards.add(createActivityCard());
 
-                    if (snapshot.hasData) {
-
+                    if (snapshot.hasData && snapshot.data!.docs.isNotEmpty) {
                       for (var doc in snapshot.data!.docs) {
                         cards.add(activityCard(doc));
                       }
-
+                    } else if (snapshot.hasData && snapshot.data!.docs.isEmpty) {
+                       // Optional: Add a message if they have no upcoming games
+                       cards.add(
+                         const Center(
+                           child: Padding(
+                             padding: EdgeInsets.only(left: 20),
+                             child: Text("No upcoming games yet!"),
+                           ),
+                         )
+                       );
                     }
 
                     return ListView(
