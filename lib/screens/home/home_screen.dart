@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:matchly/screens/activity/activity_list_screen.dart';
 import '../../services/auth_service.dart';
 import '../activity/choose_sports.dart';
 
@@ -127,7 +128,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
               /// Upcoming Activities
               const Text(
-                "UPCOMING ACTIVITIES",
+                "YOUR UPCOMING ACTIVITIES",
                 style: TextStyle(fontWeight: FontWeight.bold),
               ),
 
@@ -182,17 +183,16 @@ class _HomeScreenState extends State<HomeScreen> {
                 childAspectRatio: 0.8,
                 children: [
 
-                  gameItem("assets/badminton.png", "Badminton"),
-                  gameItem("assets/pickleball.png", "Pickleball"),
-                  gameItem("assets/tennis.png", "Tennis"),
-                  gameItem("assets/paintball.png", "Paintball"),
+                  gameItem(context,"assets/badminton.png", "Badminton"),
+                  gameItem(context,"assets/pickleball.png", "Pickleball"),
+                  gameItem(context,"assets/tennis.png", "Tennis"),
+                  gameItem(context,"assets/paintball.png", "Paintball"),
 
-                  gameItem("assets/basketball.png", "Basketball"),
-                  gameItem("assets/football.png", "Football"),
-                  gameItem("assets/futsal.png", "Futsal"),
-                  gameItem("assets/golf.png", "Golf"),
-
-                  gameItem("assets/pilates.png", "Pilates"),
+                  gameItem(context,"assets/basketball.png", "Basketball"),
+                  gameItem(context,"assets/football.png", "Football"),
+                  gameItem(context,"assets/futsal.png", "Futsal"),
+                  gameItem(context,"assets/golf.png", "Golf"),
+                  gameItem(context,"assets/pilates.png", "Pilates"),
                 ],
               ),
 
@@ -459,27 +459,32 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget gameItem(String image, String name) {
-
-    return Column(
-      children: [
-
-        CircleAvatar(
-          radius: 36,
-          backgroundImage: AssetImage(image),
-        ),
-
-        const SizedBox(height: 6),
-
-        Text(
-          name.toUpperCase(),
-          style: const TextStyle(fontSize: 10),
-          textAlign: TextAlign.center,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-        ),
-
-      ],
+  Widget gameItem(BuildContext context, String image, String name) {
+    return GestureDetector(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => ActivityListScreen(sport: name), 
+          ),
+        );
+      },
+      child: Column(
+        children: [
+          CircleAvatar(
+            radius: 36,
+            backgroundImage: AssetImage(image),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            name.toUpperCase(),
+            style: const TextStyle(fontSize: 10),
+            textAlign: TextAlign.center,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ],
+      ),
     );
   }
 }
