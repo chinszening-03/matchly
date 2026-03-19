@@ -481,7 +481,7 @@ Widget activityCard(QueryDocumentSnapshot doc) {
               const SizedBox(width: 8),
               Text(
                 formatDate(start),
-                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.black87),
+                style: const TextStyle(fontSize: 12,  color: Colors.black87),
               ),
             ],
           ),
@@ -501,7 +501,7 @@ Widget activityCard(QueryDocumentSnapshot doc) {
               const SizedBox(width: 8),
               Text(
                 "${formatTime(start)} - ${formatTime(end)}", // Start to End time
-                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.black87),
+                style: const TextStyle(fontSize: 12,  color: Colors.black87),
               ),
             ],
           ),
@@ -525,7 +525,7 @@ Widget activityCard(QueryDocumentSnapshot doc) {
                   padding: const EdgeInsets.only(top: 4),
                   child: Text(
                     location,
-                    style: TextStyle(fontSize: 12, color: Colors.grey.shade600, height: 1.2),
+                    style: TextStyle(fontSize: 12, color: Colors.black87, height: 1.2),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
