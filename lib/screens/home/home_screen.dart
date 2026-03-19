@@ -137,7 +137,7 @@ class _HomeScreenState extends State<HomeScreen> {
               const SizedBox(height: 10),
 
               SizedBox(
-                height: 260,
+                height: 310,
                 child: StreamBuilder<QuerySnapshot>(
                   stream: FirebaseFirestore.instance
                       .collection("activities")
@@ -224,7 +224,6 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   /// Create Activity Card
-  /// Create Activity Card
   Widget createActivityCard() {
     return GestureDetector(
       onTap: () {
@@ -277,8 +276,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   /// Activity Card
-  /// Activity Card
-  Widget activityCard(QueryDocumentSnapshot doc) {
+Widget activityCard(QueryDocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>;
 
     final sport = data["sport"] ?? "";
@@ -298,11 +296,21 @@ class _HomeScreenState extends State<HomeScreen> {
     // Dynamically build the details string (Players + Type + Price)
     String detailsText = "${participants.length}/$max players • $gameType";
     if (price > 0) {
-      detailsText += " • RM $price / pax";
+      detailsText += " • RM $price";
     }
 
+    // --- AVATAR LOGIC SETUP ---
+    int maxDisplay = 6; // Maximum number of circles to draw before showing "+X"
+    int currentCount = participants.length;
+    
+    int filledCircles = currentCount > maxDisplay ? maxDisplay : currentCount;
+    int emptyCircles = max > maxDisplay ? maxDisplay - filledCircles : max - filledCircles;
+    
+    // Prevent negative empty circles if data is ever weird
+    if (emptyCircles < 0) emptyCircles = 0; 
+
     return Container(
-      width: 260,
+      width: 310,
       margin: const EdgeInsets.only(right: 14, top: 4, bottom: 4),
       decoration: BoxDecoration(
         color: Colors.white,
@@ -350,9 +358,87 @@ class _HomeScreenState extends State<HomeScreen> {
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 10),
 
-          /// 👥 PLAYERS + TYPE + PRICE
+          /// 👥 AVATARS ROW (NOW FETCHES FROM FIRESTORE)
+          FutureBuilder<List<DocumentSnapshot>>(
+            // Fetch the user documents for the participants (up to the maxDisplay limit)
+            future: Future.wait(
+              participants.take(maxDisplay).map(
+                (uid) => FirebaseFirestore.instance.collection("users").doc(uid).get()
+              )
+            ),
+            builder: (context, snapshot) {
+              List<Widget> avatarWidgets = [];
+
+              // 1. Generate Filled Avatars (Loading State)
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                for (int i = 0; i < filledCircles; i++) {
+                  avatarWidgets.add(
+                    Align(
+                      widthFactor: 0.75,
+                      child: Container(
+                        width: 40, height: 40,
+                        margin: const EdgeInsets.only(right: 6),
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle, 
+                          color: Colors.grey.shade200,
+                          border: Border.all(color: Colors.white, width: 2),
+                        ),
+                      )
+                    )
+                  );
+                }
+              } 
+              // 1. Generate Filled Avatars (Loaded State)
+              else if (snapshot.hasData) {
+                for (int i = 0; i < filledCircles; i++) {
+                  var userDoc = snapshot.data![i].data() as Map<String, dynamic>?;
+                  String profilePicUrl = userDoc?["profilePicUrl"] ?? "";
+
+                  avatarWidgets.add(
+                    Container(
+                      margin: const EdgeInsets.only(right: 6), // Creates the gap
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        border: Border.all(color: Colors.white, width: 2),
+                        boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 4)],
+                      ),
+                      child: CircleAvatar(
+                        radius: 18, // INCREASED RADIUS
+                        backgroundColor: const Color(0xFF0C3169).withOpacity(0.1),
+                        backgroundImage: profilePicUrl.isNotEmpty ? NetworkImage(profilePicUrl) : null,
+                        child: profilePicUrl.isEmpty 
+                            ? const Icon(Icons.person, size: 20, color: Color(0xFF0C3169))
+                            : null, 
+                      ),
+                    ),
+                  );
+                }
+              }
+
+              // 2. Generate Empty Avatars
+              for (int i = 0; i < emptyCircles; i++) {
+                avatarWidgets.add(
+                  Container(
+                    width: 40, // Increased to match new radius size
+                    height: 40,
+                    margin: const EdgeInsets.only(right: 6), // Creates the gap
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: Colors.grey.shade50,
+                      border: Border.all(color: Colors.grey.shade300, width: 1.5, strokeAlign: BorderSide.strokeAlignInside),
+                    ),
+                  ),
+                );
+              }
+              return Row(children: avatarWidgets);
+            },
+          ),
+          
+          const SizedBox(height: 20),
+
+          /// 📌 TYPE + PRICE
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -370,7 +456,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     fontWeight: FontWeight.w500,
                   ),
                   maxLines: 1,
-                  overflow: TextOverflow.ellipsis, // Adds "..." if too long
+                  overflow: TextOverflow.ellipsis, 
                 ),
               ),
             ],
@@ -399,7 +485,7 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ],
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 5),
 
           /// ⏰ TIME
           Row(
@@ -419,7 +505,7 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ],
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 5),
 
           /// 📍 LOCATION
           Row(
@@ -451,7 +537,6 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
     );
   }
-
   /// Stats Box
   Widget statBox(IconData icon, String text) {
     return Container(
