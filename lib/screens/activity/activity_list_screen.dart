@@ -3,7 +3,6 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../services/auth_service.dart'; 
 
 class ActivityListScreen extends StatefulWidget {
-  // 1. Add the sport parameter here
   final String sport;
 
   const ActivityListScreen({super.key, required this.sport});
@@ -21,13 +20,46 @@ String formatDate(Timestamp? timestamp) {
 String formatTime(Timestamp? timestamp) {
   if (timestamp == null) return "";
   final date = timestamp.toDate();
-  final hour = date.hour > 12 ? date.hour - 12 : date.hour;
+  final hour = date.hour > 12 ? date.hour - 12 : date.hour == 0 ? 12 : date.hour;
   final suffix = date.hour >= 12 ? "PM" : "AM";
   return "$hour:${date.minute.toString().padLeft(2, '0')} $suffix";
 }
 
 class _ActivityListScreenState extends State<ActivityListScreen> {
   DateTime _selectedDate = DateTime.now();
+  
+  // Filter States
+  late String _selectedSport;
+  String _sortBy = 'time'; // 'time' or 'distance'
+  RangeValues _timeRange = const RangeValues(0, 24); // 0 = 12 AM, 24 = 11:59 PM
+
+  // List of all available sports and their asset paths
+  final List<Map<String, String>> allSports = [
+    {"name": "Badminton", "image": "assets/badminton.png"},
+    {"name": "Pickleball", "image": "assets/pickleball.png"},
+    {"name": "Basketball", "image": "assets/basketball.png"},
+    {"name": "Tennis", "image": "assets/tennis.png"},
+    {"name": "Pilates", "image": "assets/pilates.png"},
+    {"name": "Paintball", "image": "assets/paintball.png"},
+    {"name": "Golf", "image": "assets/golf.png"},
+    {"name": "Hiking", "image": "assets/hiking.png"},
+    {"name": "Football", "image": "assets/football.png"},
+    {"name": "Futsal", "image": "assets/futsal.png"},
+    {"name": "Bowling", "image": "assets/bowling.png"},
+    {"name": "Bouldering", "image": "assets/bouldering.png"},
+    {"name": "Dodgeball", "image": "assets/basketball.png"}, 
+    {"name": "Running", "image": "assets/running.png"},
+    {"name": "Squash", "image": "assets/squash.png"},
+    {"name": "Table Tennis", "image": "assets/tabletennis.png"},
+    {"name": "Frisbee", "image": "assets/frisbee.png"},
+    {"name": "Volleyball", "image": "assets/volleyball.png"},
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedSport = widget.sport; // Initialize with the sport passed from Home
+  }
 
   Future<void> joinActivity(String docId) async {
     final currentUserId = AuthService().getCurrentUser()?.uid;
@@ -38,7 +70,6 @@ class _ActivityListScreenState extends State<ActivityListScreen> {
           .collection("activities")
           .doc(docId)
           .update({
-        // arrayUnion automatically adds the user only if they aren't already in the list
         "participants": FieldValue.arrayUnion([currentUserId])
       });
 
@@ -72,10 +103,206 @@ class _ActivityListScreenState extends State<ActivityListScreen> {
     return months[month - 1];
   }
 
+  String _formatHour(double value) {
+    int hour = value.toInt();
+    if (hour == 24) return "11:59 PM";
+    if (hour == 0) return "12 AM";
+    if (hour == 12) return "12 PM";
+    return hour > 12 ? "${hour - 12} PM" : "$hour AM";
+  }
+
+  // --- MODAL SHEETS ---
+
+  void _showSortByModal() {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (context) {
+        return Padding(
+          padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text("Sort By", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 10),
+              ListTile(
+                title: const Text("Time (Default)"),
+                trailing: _sortBy == 'time' ? const Icon(Icons.check, color: Color(0xFF0D47A1)) : null,
+                onTap: () {
+                  setState(() => _sortBy = 'time');
+                  Navigator.pop(context);
+                },
+              ),
+              ListTile(
+                title: const Text("Distance"),
+                trailing: _sortBy == 'distance' ? const Icon(Icons.check, color: Color(0xFF0D47A1)) : null,
+                onTap: () {
+                  setState(() => _sortBy = 'distance');
+                  // Note: True distance sorting requires User's Location + GeoFlutterFire. 
+                  // For now, it will just change the state.
+                  Navigator.pop(context);
+                },
+              ),
+            ],
+          ),
+        );
+      }
+    );
+  }
+
+  void _showTimeModal() {
+    // Need a temporary state variable for the slider while modal is open
+    RangeValues tempRange = _timeRange; 
+
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (context) {
+        return StatefulBuilder( // StatefulBuilder allows the modal to update its own UI
+          builder: (context, setModalState) {
+            return Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text("Filter by Start Time", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 20),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(_formatHour(tempRange.start), style: const TextStyle(fontWeight: FontWeight.bold)),
+                      Text(_formatHour(tempRange.end), style: const TextStyle(fontWeight: FontWeight.bold)),
+                    ],
+                  ),
+                  RangeSlider(
+                    values: tempRange,
+                    min: 0,
+                    max: 24,
+                    divisions: 24,
+                    activeColor: const Color(0xFF0D47A1),
+                    onChanged: (values) {
+                      setModalState(() {
+                        tempRange = values;
+                      });
+                    },
+                  ),
+                  const SizedBox(height: 10),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF0D47A1),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      ),
+                      onPressed: () {
+                        setState(() {
+                          _timeRange = tempRange; // Apply to main screen
+                        });
+                        Navigator.pop(context);
+                      },
+                      child: const Text("Apply", style: TextStyle(color: Colors.white)),
+                    ),
+                  )
+                ],
+              ),
+            );
+          }
+        );
+      }
+    );
+  }
+
+  void _showSportsModal() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true, // Allows the modal to be taller
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (context) {
+        return Container(
+          height: MediaQuery.of(context).size.height * 0.6, // Take 60% of screen height
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text("Select Sport", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 16),
+              Expanded(
+                child: GridView.builder(
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 4,
+                    crossAxisSpacing: 10,
+                    mainAxisSpacing: 16,
+                    childAspectRatio: 0.75,
+                  ),
+                  itemCount: allSports.length,
+                  itemBuilder: (context, index) {
+                    final sport = allSports[index];
+                    final isSelected = _selectedSport.toLowerCase() == sport["name"]!.toLowerCase();
+                    
+                    return GestureDetector(
+                      onTap: () {
+                        setState(() {
+                          _selectedSport = sport["name"]!;
+                        });
+                        Navigator.pop(context);
+                      },
+                      child: Column(
+                        children: [
+                          Container(
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              border: isSelected ? Border.all(color: const Color(0xFF0D47A1), width: 3) : null,
+                            ),
+                            child: CircleAvatar(
+                              radius: 30,
+                              backgroundColor: Colors.grey.shade200,
+                              backgroundImage: AssetImage(sport["image"]!),
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            sport["name"]!.toUpperCase(),
+                            style: TextStyle(
+                              fontSize: 9,
+                              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                              color: isSelected ? const Color(0xFF0D47A1) : Colors.black,
+                            ),
+                            textAlign: TextAlign.center,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        );
+      }
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    DateTime startOfDay = DateTime(_selectedDate.year, _selectedDate.month, _selectedDate.day);
-    DateTime endOfDay = startOfDay.add(const Duration(days: 1)).subtract(const Duration(seconds: 1));
+    // Dynamically calculate Start and End time based on the slider state
+    DateTime startOfDay = DateTime(
+      _selectedDate.year, 
+      _selectedDate.month, 
+      _selectedDate.day, 
+      _timeRange.start.toInt()
+    );
+    
+    DateTime endOfDay = DateTime(
+      _selectedDate.year, 
+      _selectedDate.month, 
+      _selectedDate.day, 
+      _timeRange.end.toInt() == 24 ? 23 : _timeRange.end.toInt(), 
+      _timeRange.end.toInt() == 24 ? 59 : 0
+    );
 
     DateTime today = DateTime.now();
     int daysInMonth = DateTime(today.year, today.month + 1, today.day).difference(today).inDays;
@@ -83,28 +310,98 @@ class _ActivityListScreenState extends State<ActivityListScreen> {
     return Scaffold(
       backgroundColor: Colors.grey[200],
       appBar: AppBar(
-        // 2. Display the selected sport in the App Bar
-        title: Text(widget.sport, style: const TextStyle(color: Colors.black)),
+        title: Text(_selectedSport, style: const TextStyle(color: Colors.black)), // Updates when sport changes
         backgroundColor: Colors.white,
         elevation: 0,
         iconTheme: const IconThemeData(color: Colors.black),
       ),
       body: Column(
         children: [
-          // Filter Bar Placeholder
+          
+          // --- 1. FILTER BAR ---
           Container(
-            padding: const EdgeInsets.all(16),
+            height: 60,
             color: Colors.white,
-            child: const Row(
+            padding: const EdgeInsets.symmetric(vertical: 10),
+            child: ListView(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 16),
               children: [
-                Icon(Icons.filter_list),
-                SizedBox(width: 8),
-                Text("Your Filter Bar Here", style: TextStyle(fontWeight: FontWeight.bold)),
+                
+                // Map Button
+                Container(
+                  margin: const EdgeInsets.only(right: 10),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade200,
+                    borderRadius: BorderRadius.circular(20)
+                  ),
+                  child: IconButton(
+                    icon: const Icon(Icons.map_outlined, size: 20),
+                    onPressed: () {
+                      // TODO: Implement Map View
+                    },
+                  ),
+                ),
+
+                // Sort By Chip
+                Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: ActionChip(
+                    backgroundColor: Colors.grey.shade100,
+                    label: Row(
+                      children: [
+                        const Icon(Icons.sort, size: 16),
+                        const SizedBox(width: 4),
+                        Text(_sortBy == 'time' ? "Sort by" : "Distance"),
+                      ],
+                    ),
+                    onPressed: _showSortByModal,
+                  ),
+                ),
+
+                // Time Chip
+                Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: ActionChip(
+                    backgroundColor: Colors.grey.shade100,
+                    label: Row(
+                      children: [
+                        const Icon(Icons.access_time, size: 16),
+                        const SizedBox(width: 4),
+                        Text(
+                          _timeRange.start == 0 && _timeRange.end == 24 
+                          ? "Start Time" 
+                          : "${_formatHour(_timeRange.start)} - ${_formatHour(_timeRange.end)}"
+                        ),
+                      ],
+                    ),
+                    onPressed: _showTimeModal,
+                  ),
+                ),
+
+                // Sports Chip
+                Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: ActionChip(
+                    backgroundColor: const Color(0xFF0D47A1).withValues(alpha: 0.1), // Slightly highlight active sport
+                    label: Row(
+                      children: [
+                        const Icon(Icons.sports_tennis, size: 16, color: Color(0xFF0D47A1)),
+                        const SizedBox(width: 4),
+                        Text(_selectedSport, style: const TextStyle(color: Color(0xFF0D47A1), fontWeight: FontWeight.bold)),
+                        const Icon(Icons.keyboard_arrow_down, size: 16, color: Color(0xFF0D47A1)),
+                      ],
+                    ),
+                    onPressed: _showSportsModal,
+                  ),
+                ),
               ],
             ),
           ),
+          
+          const Divider(height: 1),
 
-          // The Date Filter Row
+          // --- 2. THE DATE FILTER ROW ---
           Container(
             height: 70,
             color: Colors.white,
@@ -161,13 +458,12 @@ class _ActivityListScreenState extends State<ActivityListScreen> {
 
           const SizedBox(height: 10),
 
-          // StreamBuilder with Sport AND Date Filter
+          // --- 3. STREAM BUILDER ---
           Expanded(
             child: StreamBuilder<QuerySnapshot>(
               stream: FirebaseFirestore.instance
                   .collection("activities")
-                  // 3. Filter by the selected sport
-                  .where("sport", isEqualTo: widget.sport) 
+                  .where("sport", isEqualTo: _selectedSport) // Using the dynamic state now
                   .where("startTime", isGreaterThanOrEqualTo: startOfDay)
                   .where("startTime", isLessThanOrEqualTo: endOfDay)
                   .orderBy("startTime") 
@@ -179,7 +475,7 @@ class _ActivityListScreenState extends State<ActivityListScreen> {
 
                 if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
                   return Center(
-                    child: Text("No ${widget.sport} games found for this date.", style: const TextStyle(color: Colors.grey)),
+                    child: Text("No $_selectedSport games found for this time.", style: const TextStyle(color: Colors.grey)),
                   );
                 }
 
@@ -188,8 +484,6 @@ class _ActivityListScreenState extends State<ActivityListScreen> {
                   itemCount: snapshot.data!.docs.length,
                   itemBuilder: (context, index) {
                     var doc = snapshot.data!.docs[index];
-                    
-                    // Call the custom UI card here!
                     return activityCard(doc);
                   },
                 );
@@ -215,19 +509,17 @@ class _ActivityListScreenState extends State<ActivityListScreen> {
     final start = data["startTime"] as Timestamp?;
     final end = data["endTime"] as Timestamp?;
 
-    // --- GRAB USER AND PARTICIPANT INFO ---
     final currentUserId = AuthService().getCurrentUser()?.uid;
     final createdBy = data["createdBy"] ?? "";
     final participants = List<String>.from(data["participants"] ?? []);
     
-    // --- CHECK STATES FOR THE BUTTON ---
     final isCreator = currentUserId == createdBy;
     final hasJoined = participants.contains(currentUserId);
     final isFull = participants.length >= max;
 
     return Container(
-      width: double.infinity, // Changed to fill the screen width
-      margin: const EdgeInsets.only(bottom: 16), // Changed to bottom margin for vertical scrolling
+      width: double.infinity, 
+      margin: const EdgeInsets.only(bottom: 16), 
 
       decoration: BoxDecoration(
         color: Colors.white,
@@ -279,7 +571,7 @@ class _ActivityListScreenState extends State<ActivityListScreen> {
               const Icon(Icons.people, size: 14, color: Colors.grey),
               const SizedBox(width: 4),
               Text(
-                "${participants.length}/$max players • $gameType", // Show current participant count
+                "${participants.length}/$max players • $gameType", 
                 style: const TextStyle(
                   fontSize: 12,
                   color: Colors.grey,
@@ -352,13 +644,11 @@ class _ActivityListScreenState extends State<ActivityListScreen> {
           const SizedBox(height: 16),
 
           /// 🔵 JOIN BUTTON UI
-          // If the user is NOT the creator, show the action button row
           if (!isCreator)
             SizedBox(
               width: double.infinity,
               height: 45,
               child: ElevatedButton(
-                // Disable button if they already joined or if it's full
                 onPressed: (hasJoined || isFull) ? null : () => joinActivity(doc.id),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF0D47A1),
@@ -381,7 +671,6 @@ class _ActivityListScreenState extends State<ActivityListScreen> {
               ),
             ),
             
-          // If they ARE the creator, show a subtle label instead of the button
           if (isCreator)
             Center(
               child: Text(
