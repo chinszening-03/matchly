@@ -137,7 +137,7 @@ class _HomeScreenState extends State<HomeScreen> {
               const SizedBox(height: 10),
 
               SizedBox(
-                height: 250,
+                height: 260,
                 child: StreamBuilder<QuerySnapshot>(
                   stream: FirebaseFirestore.instance
                       .collection("activities")
@@ -224,44 +224,51 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   /// Create Activity Card
+  /// Create Activity Card
   Widget createActivityCard() {
-
     return GestureDetector(
       onTap: () {
-
         Navigator.push(
           context,
           MaterialPageRoute(
             builder: (_) => const CreateActivityScreen(),
           ),
         );
-
       },
-
       child: Container(
         width: 150,
-        margin: const EdgeInsets.only(right: 10),
-
+        margin: const EdgeInsets.only(right: 12, top: 4, bottom: 4), // Added margin for shadow
         decoration: BoxDecoration(
-          color: const Color(0xFF0D47A1),
-          borderRadius: BorderRadius.circular(12),
+          gradient: const LinearGradient(
+            colors: [Color(0xFF0C3169), Color(0xFF134A9E)], // Subtle premium gradient
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFF0C3169).withOpacity(0.3),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            )
+          ],
         ),
-
         child: const Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-
-              Icon(Icons.add, color: Colors.white, size: 30),
-
-              SizedBox(height: 8),
-
+              Icon(Icons.add_circle_outline, color: Colors.white, size: 36),
+              SizedBox(height: 10),
               Text(
                 "Create\nActivity",
                 textAlign: TextAlign.center,
-                style: TextStyle(color: Colors.white),
+                style: TextStyle(
+                  color: Colors.white, 
+                  fontWeight: FontWeight.w600,
+                  fontSize: 14,
+                  letterSpacing: 0.5,
+                ),
               )
-
             ],
           ),
         ),
@@ -270,213 +277,222 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   /// Activity Card
+  /// Activity Card
   Widget activityCard(QueryDocumentSnapshot doc) {
+    final data = doc.data() as Map<String, dynamic>;
 
-  final data = doc.data() as Map<String, dynamic>;
+    final sport = data["sport"] ?? "";
+    final name = data["name"] ?? "Game";
+    final location = data["location"] ?? "";
+    final gameType = data["gameType"] ?? "";
 
-  final sport = data["sport"] ?? "";
-  final name = data["name"] ?? "Game";
-  final location = data["location"] ?? "";
-  final gameType = data["gameType"] ?? "";
+    final max = data["maxPeople"] ?? 0;
+    final price = data["price"] ?? 0;
 
-  final min = data["minPeople"] ?? 0;
-  final max = data["maxPeople"] ?? 0;
+    final start = data["startTime"] as Timestamp?;
+    final end = data["endTime"] as Timestamp?;
 
-  final price = data["price"] ?? 0;
+    // Grab participants to show accurate player count like the list screen
+    final participants = List<String>.from(data["participants"] ?? []);
 
-  final start = data["startTime"] as Timestamp?;
-  final end = data["endTime"] as Timestamp?;
+    // Dynamically build the details string (Players + Type + Price)
+    String detailsText = "${participants.length}/$max players • $gameType";
+    if (price > 0) {
+      detailsText += " • RM $price / pax";
+    }
 
-  return Container(
-    width: 260,
-    margin: const EdgeInsets.only(right: 12),
-
-    decoration: BoxDecoration(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(16),
-      boxShadow: [
-        BoxShadow(
-          color: Colors.black.withOpacity(0.05),
-          blurRadius: 8,
-        )
-      ],
-    ),
-
-    padding: const EdgeInsets.all(14),
-
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-
-        /// 🔵 SPORT TAG
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-
-          decoration: BoxDecoration(
-            color: const Color(0xFF0D47A1),
-            borderRadius: BorderRadius.circular(20),
-          ),
-
-          child: Text(
-            sport.toUpperCase(),
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 10,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-        ),
-
-        const SizedBox(height: 10),
-
-        /// 🏸 GAME NAME
-        Text(
-          name,
-          style: const TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.bold,
-          ),
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-        ),
-
-        const SizedBox(height: 8),
-
-        /// 👥 PLAYERS + TYPE
-        Row(
-          children: [
-
-            const Icon(Icons.people, size: 14, color: Colors.grey),
-
-            const SizedBox(width: 4),
-
-            Text(
-              "$min-$max players • $gameType",
-              style: const TextStyle(
-                fontSize: 12,
-                color: Colors.grey,
-              ),
-            ),
-
-          ],
-        ),
-
-        const SizedBox(height: 6),
-
-        /// 💰 PRICE
-        if (price > 0)
-          Row(
-            children: [
-
-              const Icon(Icons.attach_money, size: 14, color: Colors.grey),
-
-              const SizedBox(width: 4),
-
-              Text(
-                "RM $price / pax",
-                style: const TextStyle(
-                  fontSize: 12,
-                  color: Colors.grey,
-                ),
-              ),
-
-            ],
-          ),
-
-        const SizedBox(height: 10),
-
-        const Divider(),
-
-        const SizedBox(height: 8),
-
-        /// 📅 DATE
-        Row(
-          children: [
-
-            const Icon(Icons.calendar_month, size: 14),
-
-            const SizedBox(width: 6),
-
-            Text(
-              formatDate(start),
-              style: const TextStyle(fontSize: 12),
-            ),
-
-          ],
-        ),
-
-        const SizedBox(height: 6),
-
-        /// ⏰ TIME
-        Row(
-          children: [
-
-            const Icon(Icons.access_time, size: 14),
-
-            const SizedBox(width: 6),
-
-            Text(
-              "${formatTime(start)} - ${formatTime(end)}",
-              style: const TextStyle(fontSize: 12),
-            ),
-
-          ],
-        ),
-
-        const SizedBox(height: 6),
-
-        /// 📍 LOCATION
-        Row(
-          children: [
-
-            const Icon(Icons.location_on, size: 14),
-
-            const SizedBox(width: 6),
-
-            Expanded(
-              child: Text(
-                location,
-                style: const TextStyle(fontSize: 12),
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-
-          ],
-        ),
-
-      ],
-    ),
-  );
-}
-
-  Widget statBox(IconData icon, String text) {
     return Container(
-      width: 110,
-      padding: const EdgeInsets.symmetric(vertical: 10),
-
+      width: 260,
+      margin: const EdgeInsets.only(right: 14, top: 4, bottom: 4),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: Colors.grey.shade300),
-      ),
-
-      child: Column(
-        children: [
-
-          Icon(icon, size: 18),
-
-          const SizedBox(height: 4),
-
-          Text(
-            text,
-            style: const TextStyle(fontSize: 12),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.grey.shade100),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
           )
+        ],
+      ),
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          /// 🔵 SPORT TAG
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(
+              color: const Color(0xFF0C3169).withOpacity(0.1), // Soft background
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Text(
+              sport.toUpperCase(),
+              style: const TextStyle(
+                color: Color(0xFF0C3169), // Primary colored text
+                fontSize: 10,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 0.5,
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
 
+          /// 🏸 GAME NAME
+          Text(
+            name,
+            style: const TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: Colors.black87,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          const SizedBox(height: 8),
+
+          /// 👥 PLAYERS + TYPE + PRICE
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Padding(
+                padding: EdgeInsets.only(top: 2),
+                child: Icon(Icons.people_outline, size: 16, color: Color(0xFF0C3169)),
+              ),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  detailsText,
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: Colors.grey.shade700,
+                    fontWeight: FontWeight.w500,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis, // Adds "..." if too long
+                ),
+              ),
+            ],
+          ),
+            
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 10),
+            child: Divider(height: 1, thickness: 1, color: Color(0xFFF0F0F0)),
+          ),
+
+          /// 📅 DATE
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade100,
+                  borderRadius: BorderRadius.circular(8)
+                ),
+                child: const Icon(Icons.calendar_today, size: 14, color: Color(0xFF0C3169)),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                formatDate(start),
+                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.black87),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+
+          /// ⏰ TIME
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade100,
+                  borderRadius: BorderRadius.circular(8)
+                ),
+                child: const Icon(Icons.access_time, size: 14, color: Color(0xFF0C3169)),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                "${formatTime(start)} - ${formatTime(end)}", // Start to End time
+                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.black87),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+
+          /// 📍 LOCATION
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade100,
+                  borderRadius: BorderRadius.circular(8)
+                ),
+                child: const Icon(Icons.location_on_outlined, size: 14, color: Color(0xFF0C3169)),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: Text(
+                    location,
+                    style: TextStyle(fontSize: 12, color: Colors.grey.shade600, height: 1.2),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ),
+            ],
+          ),
         ],
       ),
     );
   }
 
+  /// Stats Box
+  Widget statBox(IconData icon, String text) {
+    return Container(
+      width: 105, // Slightly adjusted width to fit perfectly on standard screens
+      padding: const EdgeInsets.symmetric(vertical: 14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.03),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: const Color(0xFF0C3169).withOpacity(0.08), // Primary color tint
+              shape: BoxShape.circle,
+            ),
+            child: Icon(icon, size: 22, color: const Color(0xFF0C3169)), // Primary color icon
+          ),
+          const SizedBox(height: 8),
+          Text(
+            text,
+            style: const TextStyle(
+              fontSize: 12, 
+              fontWeight: FontWeight.w600,
+              color: Colors.black87,
+            ),
+          )
+        ],
+      ),
+    );
+  }
+
+  /// Game Category Item
   Widget gameItem(BuildContext context, String image, String name) {
     return GestureDetector(
       onTap: () {
@@ -489,14 +505,34 @@ class _HomeScreenState extends State<HomeScreen> {
       },
       child: Column(
         children: [
-          CircleAvatar(
-            radius: 36,
-            backgroundImage: AssetImage(image),
+          Container(
+            padding: const EdgeInsets.all(3), // Creates a thin border effect
+            decoration: BoxDecoration(
+              color: Colors.white,
+              shape: BoxShape.circle,
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.06),
+                  blurRadius: 8,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: CircleAvatar(
+              radius: 32,
+              backgroundColor: Colors.grey.shade100, // Light background for transparent PNGs
+              backgroundImage: AssetImage(image),
+            ),
           ),
-          const SizedBox(height: 6),
+          const SizedBox(height: 8),
           Text(
             name.toUpperCase(),
-            style: const TextStyle(fontSize: 10),
+            style: const TextStyle(
+              fontSize: 10, 
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.3,
+              color: Colors.black87,
+            ),
             textAlign: TextAlign.center,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
