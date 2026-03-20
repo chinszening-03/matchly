@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:matchly/screens/activity/activity_list_screen.dart';
 import '../../services/auth_service.dart';
 import '../activity/choose_sports.dart';
+import '../activity/activitiy_details_screen.dart'; 
 
 String formatDate(Timestamp? timestamp) {
   if (timestamp == null) return "";
@@ -348,7 +349,16 @@ Widget activityCard(QueryDocumentSnapshot doc) {
     // Prevent negative empty circles if data is ever weird
     if (emptyCircles < 0) emptyCircles = 0; 
 
-    return Container(
+    return GestureDetector(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => ActivityDetailsScreen(activityId: doc.id),
+          ),
+        );
+      },
+      child: Container(
       width: 310,
       margin: const EdgeInsets.only(right: 14, top: 4, bottom: 4),
       decoration: BoxDecoration(
@@ -576,7 +586,7 @@ Widget activityCard(QueryDocumentSnapshot doc) {
           ),
         ],
       ),
-    );
+    ));
   }
   /// Stats Box
   Widget statBox(IconData icon, String text) {
