@@ -88,7 +88,7 @@ class _ActivityListScreenState extends State<ActivityListScreen> {
     {"name": "Futsal", "image": "assets/futsal.png"},
     {"name": "Bowling", "image": "assets/bowling.png"},
     {"name": "Bouldering", "image": "assets/bouldering.png"},
-    {"name": "Dodgeball", "image": "assets/basketball.png"}, 
+    {"name": "Dodgeball", "image": "assets/dodgeball.png"}, 
     {"name": "Running", "image": "assets/running.png"},
     {"name": "Squash", "image": "assets/squash.png"},
     {"name": "Table Tennis", "image": "assets/tabletennis.png"},

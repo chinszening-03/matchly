@@ -27,7 +27,7 @@ class _CreateActivityScreenState extends State<CreateActivityScreen> {
     {"name": "Futsal", "icon": "assets/futsal.png"},
     {"name": "Bowling", "icon": "assets/bowling.png"},
     {"name": "Bouldering", "icon": "assets/bouldering.png"},
-    {"name": "Dodgeball", "icon": "assets/bouldering.png"},
+    {"name": "Dodgeball", "icon": "assets/dodgeball.png"},
     {"name": "Running", "icon": "assets/running.png"},
     {"name": "Squash", "icon": "assets/squash.png"},
     {"name": "Table Tennis", "icon": "assets/tabletennis.png"},
