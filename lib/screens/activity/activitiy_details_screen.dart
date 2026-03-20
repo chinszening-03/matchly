@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:url_launcher/url_launcher.dart'; 
 import '../../services/auth_service.dart';
 
 class ActivityDetailsScreen extends StatefulWidget {
@@ -51,6 +52,49 @@ class _ActivityDetailsScreenState extends State<ActivityDetailsScreen> {
     if (hours > 0 && minutes > 0) return "${hours}h ${minutes}m";
     if (hours > 0) return "$hours hr${hours > 1 ? 's' : ''}";
     return "$minutes mins";
+  }
+
+  // --- GOOGLE MAPS LAUNCHER LOGIC ---
+  Future<void> _openMapDialog(BuildContext context, String location) async {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text("Open Google Maps?", style: TextStyle(fontWeight: FontWeight.bold)),
+        content: Text("Do you want to get directions to '$location'? This will open your maps app."),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text("Cancel", style: TextStyle(color: Colors.grey)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: primaryColor,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+            onPressed: () async {
+              Navigator.pop(context); // Close dialog
+
+              // Encode the location string so URLs don't break on spaces
+              final String encodedLocation = Uri.encodeComponent(location);
+              final Uri googleMapsUrl = Uri.parse("https://www.google.com/maps/search/?api=1&query=$encodedLocation");
+
+              // Check if device can open maps, then launch it externally
+              if (await canLaunchUrl(googleMapsUrl)) {
+                await launchUrl(googleMapsUrl, mode: LaunchMode.externalApplication);
+              } else {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text("Could not open Google Maps.")),
+                  );
+                }
+              }
+            },
+            child: const Text("Open Maps", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
   }
 
   // --- JOIN LOGIC ---
@@ -116,8 +160,7 @@ class _ActivityDetailsScreenState extends State<ActivityDetailsScreen> {
         final start = data["startTime"] as Timestamp?;
         final end = data["endTime"] as Timestamp?;
         
-        // --- NEW COURT LOGIC EXTRACTED HERE ---
-        // Checking common keys you might have used in CreateActivityScreen
+        // Checking common keys
         final isCourtBooked = data["isCourtBooked"] ?? data["courtBooked"] ?? false;
         final courtDetails = data["courtDetails"] ?? data["courtNumber"] ?? data["court"] ?? "";
 
@@ -137,13 +180,11 @@ class _ActivityDetailsScreenState extends State<ActivityDetailsScreen> {
               elevation: 0,
               iconTheme: const IconThemeData(color: Colors.black),
               
-              /// --- SIMPLE APP BAR TITLE ---
               title: Text(
                 name,
                 style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 18),
               ),
               
-              /// --- TAB BAR NAVIGATION ---
               bottom: TabBar(
                 labelColor: primaryColor,
                 unselectedLabelColor: Colors.grey.shade500,
@@ -156,7 +197,6 @@ class _ActivityDetailsScreenState extends State<ActivityDetailsScreen> {
               ),
             ),
             
-            /// --- TAB CONTENT ---
             body: TabBarView(
               children: [
                 
@@ -215,11 +255,14 @@ class _ActivityDetailsScreenState extends State<ActivityDetailsScreen> {
                             const SizedBox(height: 16),
                             
                             // --- COURT BOOKED DISPLAY ---
-                            // Only displays if the host toggled it ON and typed something in
                             if (isCourtBooked && courtDetails.toString().trim().isNotEmpty) ...[
                               _buildInfoRow(Icons.check_circle_outline, "Court Booked", courtDetails.toString()),
                               const SizedBox(height: 16),
                             ],
+
+                            // --- MAP UI SNIPPET ---
+                            _buildMapSnippet(context, location),
+                            const SizedBox(height: 16),
 
                             // --- PRICE DISPLAY ---
                             if (price > 0) _buildInfoRow(Icons.attach_money, "Price", "RM $price / pax"),
@@ -362,7 +405,7 @@ class _ActivityDetailsScreenState extends State<ActivityDetailsScreen> {
     );
   }
 
-  // Helper widget to keep the UI code clean
+  // --- UI HELPER: INFO ROW ---
   Widget _buildInfoRow(IconData icon, String title, String value) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -384,6 +427,66 @@ class _ActivityDetailsScreenState extends State<ActivityDetailsScreen> {
           ),
         ),
       ],
+    );
+  }
+
+  // --- UI HELPER: MAP SNIPPET ---
+  Widget _buildMapSnippet(BuildContext context, String location) {
+    return GestureDetector(
+      onTap: () => _openMapDialog(context, location),
+      child: Container(
+        height: 110,
+        width: double.infinity,
+        margin: const EdgeInsets.only(left: 48), // Align perfectly with the text from _buildInfoRow
+        decoration: BoxDecoration(
+          color: const Color(0xFFE8EAF6), // Soft map-like blue-grey tint
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.grey.shade300),
+        ),
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            // Center drop pin
+            Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.location_on, color: Colors.redAccent, size: 36),
+                Container(
+                  width: 12, height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.black12,
+                    borderRadius: BorderRadius.circular(100),
+                  ),
+                )
+              ],
+            ),
+            
+            // "Get Directions" Overlay Button
+            Positioned(
+              bottom: 8,
+              right: 8,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(20),
+                  boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 4, offset: Offset(0, 2))],
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.directions, size: 14, color: primaryColor),
+                    const SizedBox(width: 4),
+                    Text(
+                      "Directions", 
+                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: primaryColor)
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

@@ -576,6 +576,7 @@ AnimatedSwitcher(
                     "name": nameController.text,
                     "description": descriptionController.text,
                     "location": locationController.text,
+                    
 
                     "isCourtBooked": courtBooked,
                     "courtDetails": courtBooked ? courtController.text : "",
