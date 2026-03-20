@@ -26,6 +26,8 @@ class _ActivityDetailsScreenState extends State<ActivityDetailsScreen> {
 
   bool courtBooked = false;
   String gameType = "Singles";
+  double? selectedLat;
+  double? selectedLng;
 
   final List<String> gameTypes = ["Singles", "Doubles", "Social"];
 
@@ -360,6 +362,8 @@ class _ActivityDetailsScreenState extends State<ActivityDetailsScreen> {
                       if (result != null) {
                         setState(() {
                           locationController.text = result["name"];
+                          selectedLat = result["lat"];
+                          selectedLng = result["lng"];
                         });
                       }
                     },
@@ -536,6 +540,8 @@ AnimatedSwitcher(
                   int max = int.tryParse(maxPeopleController.text) ?? 0;
 
                   if (locationController.text.isEmpty ||
+                      selectedLat == null ||
+                      selectedLng == null || 
                       startTime == null ||
                       endTime == null ||
                       selectedDate == null ||
@@ -576,7 +582,7 @@ AnimatedSwitcher(
                     "name": nameController.text,
                     "description": descriptionController.text,
                     "location": locationController.text,
-                    
+                    "coordinates": GeoPoint(selectedLat!, selectedLng!),
 
                     "isCourtBooked": courtBooked,
                     "courtDetails": courtBooked ? courtController.text : "",

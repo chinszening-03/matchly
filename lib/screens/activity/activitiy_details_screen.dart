@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:url_launcher/url_launcher.dart'; 
+import 'package:url_launcher/url_launcher.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart'; // Add this import
 import '../../services/auth_service.dart';
 
 class ActivityDetailsScreen extends StatefulWidget {
@@ -14,6 +15,10 @@ class ActivityDetailsScreen extends StatefulWidget {
 
 class _ActivityDetailsScreenState extends State<ActivityDetailsScreen> {
   final Color primaryColor = const Color(0xFF0C3169);
+  
+  // Controller for the Google Map
+  // ignore: unused_field
+  GoogleMapController? _mapController;
 
   // --- HELPER FUNCTIONS ---
   String formatDate(Timestamp? timestamp) {
@@ -54,7 +59,7 @@ class _ActivityDetailsScreenState extends State<ActivityDetailsScreen> {
     return "$minutes mins";
   }
 
-  // --- GOOGLE MAPS LAUNCHER LOGIC ---
+  // --- GOOGLE MAPS LAUNCHER LOGIC (Native App) ---
   Future<void> _openMapDialog(BuildContext context, String location) async {
     showDialog(
       context: context,
@@ -74,12 +79,8 @@ class _ActivityDetailsScreenState extends State<ActivityDetailsScreen> {
             ),
             onPressed: () async {
               Navigator.pop(context); // Close dialog
-
-              // Encode the location string so URLs don't break on spaces
               final String encodedLocation = Uri.encodeComponent(location);
               final Uri googleMapsUrl = Uri.parse("https://www.google.com/maps/search/?api=1&query=$encodedLocation");
-
-              // Check if device can open maps, then launch it externally
               if (await canLaunchUrl(googleMapsUrl)) {
                 await launchUrl(googleMapsUrl, mode: LaunchMode.externalApplication);
               } else {
@@ -153,6 +154,10 @@ class _ActivityDetailsScreenState extends State<ActivityDetailsScreen> {
         final sport = data["sport"] ?? "Sport";
         final name = data["name"] ?? "Game Name";
         final location = data["location"] ?? "No Location Provided";
+        
+        // 👇 Grab the coordinates field 👇
+        final GeoPoint? coords = data["coordinates"] as GeoPoint?;
+
         final description = data["description"] ?? "No description provided for this game.";
         final gameType = data["gameType"] ?? "Casual";
         final max = data["maxPeople"] ?? 0;
@@ -160,7 +165,6 @@ class _ActivityDetailsScreenState extends State<ActivityDetailsScreen> {
         final start = data["startTime"] as Timestamp?;
         final end = data["endTime"] as Timestamp?;
         
-        // Checking common keys
         final isCourtBooked = data["isCourtBooked"] ?? data["courtBooked"] ?? false;
         final courtDetails = data["courtDetails"] ?? data["courtNumber"] ?? data["court"] ?? "";
 
@@ -170,6 +174,12 @@ class _ActivityDetailsScreenState extends State<ActivityDetailsScreen> {
         final isCreator = currentUserId == createdBy;
         final hasJoined = participants.contains(currentUserId);
         final isFull = participants.length >= max;
+
+        // Converter GeoPoint to LatLng for Google Maps
+        LatLng activityLatLng = const LatLng(3.1390, 101.6869); // Default: KL
+        if (coords != null) {
+          activityLatLng = LatLng(coords.latitude, coords.longitude);
+        }
 
         return DefaultTabController(
           length: 2,
@@ -260,9 +270,11 @@ class _ActivityDetailsScreenState extends State<ActivityDetailsScreen> {
                               const SizedBox(height: 16),
                             ],
 
-                            // --- MAP UI SNIPPET ---
-                            _buildMapSnippet(context, location),
-                            const SizedBox(height: 16),
+                            // --- 👇 NEW DYNAMIC MAP UI SNIPPET 👇 ---
+                            if (coords != null) ...[
+                              _buildDynamicMap(activityLatLng, location),
+                              const SizedBox(height: 16),
+                            ],
 
                             // --- PRICE DISPLAY ---
                             if (price > 0) _buildInfoRow(Icons.attach_money, "Price", "RM $price / pax"),
@@ -430,57 +442,73 @@ class _ActivityDetailsScreenState extends State<ActivityDetailsScreen> {
     );
   }
 
-  // --- UI HELPER: MAP SNIPPET ---
-  Widget _buildMapSnippet(BuildContext context, String location) {
-    return GestureDetector(
-      onTap: () => _openMapDialog(context, location),
-      child: Container(
-        height: 110,
-        width: double.infinity,
-        margin: const EdgeInsets.only(left: 48), // Align perfectly with the text from _buildInfoRow
-        decoration: BoxDecoration(
-          color: const Color(0xFFE8EAF6), // Soft map-like blue-grey tint
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.grey.shade300),
-        ),
+  // --- 👇 NEW UI HELPER: DYNAMIC GOOGLE MAP 👇 ---
+  Widget _buildDynamicMap(LatLng position, String location) {
+    // Defines the camera view (center and zoom level)
+    final CameraPosition activityCamera = CameraPosition(
+      target: position,
+      zoom: 15.0, // Standard street-level zoom
+    );
+
+    // Defines the red marker pin on the map
+    Set<Marker> markers = {
+      Marker(
+        markerId: const MarkerId("activity_loc"),
+        position: position,
+        infoWindow: InfoWindow(title: location),
+        icon: BitmapDescriptor.defaultMarker, // Standard red pin
+      ),
+    };
+
+    return Container(
+      height: 180, // Increased height for better visibility
+      width: double.infinity,
+      margin: const EdgeInsets.only(left: 48), // Align perfectly with InfoRow text
+      decoration: BoxDecoration(
+        color: Colors.grey.shade100,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey.shade300),
+      ),
+      // ClipRRect ensures the map corners are rounded to match the container
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(12),
         child: Stack(
-          alignment: Alignment.center,
           children: [
-            // Center drop pin
-            Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Icon(Icons.location_on, color: Colors.redAccent, size: 36),
-                Container(
-                  width: 12, height: 4,
-                  decoration: BoxDecoration(
-                    color: Colors.black12,
-                    borderRadius: BorderRadius.circular(100),
-                  ),
-                )
-              ],
+            // THE ACTUAL INTERACTIVE MAP WIDGET
+            GoogleMap(
+              mapType: MapType.normal,
+              initialCameraPosition: activityCamera,
+              markers: markers,
+              myLocationButtonEnabled: false, // Keep UI clean
+              zoomControlsEnabled: false, // Keep UI clean
+              onMapCreated: (GoogleMapController controller) {
+                _mapController = controller;
+              },
             ),
             
-            // "Get Directions" Overlay Button
+            // "Get Directions" Overlay Button (Clicking this still opens native maps)
             Positioned(
               bottom: 8,
               right: 8,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(20),
-                  boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 4, offset: Offset(0, 2))],
-                ),
-                child: Row(
-                  children: [
-                    Icon(Icons.directions, size: 14, color: primaryColor),
-                    const SizedBox(width: 4),
-                    Text(
-                      "Directions", 
-                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: primaryColor)
-                    ),
-                  ],
+              child: GestureDetector(
+                onTap: () => _openMapDialog(context, location),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(20),
+                    boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 4, offset: Offset(0, 2))],
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.directions, size: 16, color: primaryColor),
+                      const SizedBox(width: 6),
+                      Text(
+                        "Directions", 
+                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: primaryColor)
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
