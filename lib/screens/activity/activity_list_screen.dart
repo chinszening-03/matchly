@@ -257,11 +257,11 @@ class _ActivityListScreenState extends State<ActivityListScreen> {
   void _showSportsModal() {
     showModalBottomSheet(
       context: context,
-      isScrollControlled: true, // Allows the modal to be taller
+      isScrollControlled: true, 
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (context) {
         return Container(
-          height: MediaQuery.of(context).size.height * 0.6, // Take 60% of screen height
+          height: MediaQuery.of(context).size.height * 0.6, 
           padding: const EdgeInsets.all(20),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -276,15 +276,21 @@ class _ActivityListScreenState extends State<ActivityListScreen> {
                     mainAxisSpacing: 16,
                     childAspectRatio: 0.75,
                   ),
-                  itemCount: allSports.length,
+                  // +1 to accommodate the "All" button at the beginning
+                  itemCount: allSports.length + 1, 
                   itemBuilder: (context, index) {
-                    final sport = allSports[index];
-                    final isSelected = _selectedSport.toLowerCase() == sport["name"]!.toLowerCase();
+                    
+                    // --- NEW LOGIC: Check if it's the "All" button ---
+                    final isAll = index == 0;
+                    final sportName = isAll ? "All" : allSports[index - 1]["name"]!;
+                    final sportImage = isAll ? "" : allSports[index - 1]["image"]!;
+                    
+                    final isSelected = _selectedSport.toLowerCase() == sportName.toLowerCase();
                     
                     return GestureDetector(
                       onTap: () {
                         setState(() {
-                          _selectedSport = sport["name"]!;
+                          _selectedSport = sportName;
                         });
                         Navigator.pop(context);
                       },
@@ -293,21 +299,24 @@ class _ActivityListScreenState extends State<ActivityListScreen> {
                           Container(
                             decoration: BoxDecoration(
                               shape: BoxShape.circle,
-                              border: isSelected ? Border.all(color: const Color(0xFF0D47A1), width: 3) : null,
+                              border: isSelected ? Border.all(color: const Color(0xFF0C3169), width: 3) : null,
                             ),
                             child: CircleAvatar(
                               radius: 30,
-                              backgroundColor: Colors.grey.shade200,
-                              backgroundImage: AssetImage(sport["image"]!),
+                              backgroundColor: Colors.grey.shade100,
+                              // If it's "All", don't use an image. If it's a sport, use the asset.
+                              backgroundImage: isAll ? null : AssetImage(sportImage),
+                              // If it's "All", show a nice grid icon
+                              child: isAll ? const Icon(Icons.apps, size: 28, color: Color(0xFF0C3169)) : null,
                             ),
                           ),
                           const SizedBox(height: 6),
                           Text(
-                            sport["name"]!.toUpperCase(),
+                            sportName.toUpperCase(),
                             style: TextStyle(
                               fontSize: 9,
                               fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                              color: isSelected ? const Color(0xFF0D47A1) : Colors.black,
+                              color: isSelected ? const Color(0xFF0C3169) : Colors.black,
                             ),
                             textAlign: TextAlign.center,
                             maxLines: 1,
@@ -501,13 +510,22 @@ class _ActivityListScreenState extends State<ActivityListScreen> {
           // --- 3. STREAM BUILDER ---
           Expanded(
             child: StreamBuilder<QuerySnapshot>(
-              stream: FirebaseFirestore.instance
-                  .collection("activities")
-                  .where("sport", isEqualTo: _selectedSport) // Using the dynamic state now
-                  .where("startTime", isGreaterThanOrEqualTo: startOfDay)
-                  .where("startTime", isLessThanOrEqualTo: endOfDay)
-                  .orderBy("startTime") 
-                  .snapshots(),
+              stream: () {
+                // Dynamically build the query
+                Query query = FirebaseFirestore.instance.collection("activities");
+                
+                // Only add the Sport filter if the user hasn't selected "All"
+                if (_selectedSport != "All") {
+                  query = query.where("sport", isEqualTo: _selectedSport);
+                }
+
+                // Always apply the date and time filters
+                return query
+                    .where("startTime", isGreaterThanOrEqualTo: startOfDay)
+                    .where("startTime", isLessThanOrEqualTo: endOfDay)
+                    .orderBy("startTime")
+                    .snapshots();
+              }(), // Executes the function immediately to return the stream
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return const Center(child: CircularProgressIndicator());
@@ -515,7 +533,12 @@ class _ActivityListScreenState extends State<ActivityListScreen> {
 
                 if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
                   return Center(
-                    child: Text("No $_selectedSport games found for this time.", style: const TextStyle(color: Colors.grey)),
+                    child: Text(
+                      _selectedSport == "All" 
+                          ? "No games found for this time." 
+                          : "No $_selectedSport games found for this time.", 
+                      style: const TextStyle(color: Colors.grey)
+                    ),
                   );
                 }
 
