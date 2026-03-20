@@ -49,6 +49,22 @@ String formatTime(Timestamp? timestamp) {
   return "$hour:${date.minute.toString().padLeft(2, '0')} $suffix";
 }
 
+String formatDuration(Timestamp? start, Timestamp? end) {
+  if (start == null || end == null) return "";
+  
+  final difference = end.toDate().difference(start.toDate());
+  final hours = difference.inHours;
+  final minutes = difference.inMinutes % 60;
+  
+  if (hours > 0 && minutes > 0) {
+    return "${hours}h ${minutes}m";
+  } else if (hours > 0) {
+    return "$hours hr${hours > 1 ? 's' : ''}";
+  } else {
+    return "$minutes mins";
+  }
+}
+
 class _ActivityListScreenState extends State<ActivityListScreen> {
   DateTime _selectedDate = DateTime.now();
   
@@ -735,7 +751,7 @@ class _ActivityListScreenState extends State<ActivityListScreen> {
           ),
           const SizedBox(height: 5),
 
-          /// ⏰ TIME
+          /// ⏰ TIME & DURATION
           Row(
             children: [
               Container(
@@ -748,8 +764,8 @@ class _ActivityListScreenState extends State<ActivityListScreen> {
               ),
               const SizedBox(width: 8),
               Text(
-                "${formatTime(start)} - ${formatTime(end)}", // Start to End time
-                style: const TextStyle(fontSize: 12,  color: Colors.black87),
+                "${formatTime(start)} - ${formatTime(end)}  •  ${formatDuration(start, end)}", 
+                style: const TextStyle(fontSize: 12, color: Colors.black87),
               ),
             ],
           ),

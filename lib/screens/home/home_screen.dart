@@ -6,9 +6,32 @@ import '../activity/choose_sports.dart';
 
 String formatDate(Timestamp? timestamp) {
   if (timestamp == null) return "";
-
+  
   final date = timestamp.toDate();
-  return "${date.day}/${date.month}/${date.year}";
+  final now = DateTime.now();
+  
+  // Strip out the hours/minutes to accurately compare just the calendar days
+  final today = DateTime(now.year, now.month, now.day);
+  final tomorrow = today.add(const Duration(days: 1));
+  final targetDate = DateTime(date.year, date.month, date.day);
+  
+  String dayName;
+  
+  if (targetDate == today) {
+    dayName = "Today";
+  } else if (targetDate == tomorrow) {
+    dayName = "Tomorrow";
+  } else {
+    // If it's not today or tomorrow, get the full day name
+    List<String> days = [
+      "Monday", "Tuesday", "Wednesday", "Thursday", 
+      "Friday", "Saturday", "Sunday"
+    ];
+    dayName = days[date.weekday - 1];
+  }
+
+  // Returns formats like: "Today, 19/3/2026" or "Monday, 23/3/2026"
+  return "$dayName, ${date.day}/${date.month}/${date.year}";
 }
 
 String formatTime(Timestamp? timestamp) {
@@ -19,6 +42,22 @@ String formatTime(Timestamp? timestamp) {
   final suffix = date.hour >= 12 ? "PM" : "AM";
 
   return "$hour:${date.minute.toString().padLeft(2, '0')} $suffix";
+}
+
+String formatDuration(Timestamp? start, Timestamp? end) {
+  if (start == null || end == null) return "";
+  
+  final difference = end.toDate().difference(start.toDate());
+  final hours = difference.inHours;
+  final minutes = difference.inMinutes % 60;
+  
+  if (hours > 0 && minutes > 0) {
+    return "${hours}h ${minutes}m";
+  } else if (hours > 0) {
+    return "$hours hr${hours > 1 ? 's' : ''}";
+  } else {
+    return "$minutes mins";
+  }
 }
 
 class HomeScreen extends StatefulWidget {
@@ -487,7 +526,7 @@ Widget activityCard(QueryDocumentSnapshot doc) {
           ),
           const SizedBox(height: 5),
 
-          /// ⏰ TIME
+          /// ⏰ TIME & DURATION
           Row(
             children: [
               Container(
@@ -500,12 +539,14 @@ Widget activityCard(QueryDocumentSnapshot doc) {
               ),
               const SizedBox(width: 8),
               Text(
-                "${formatTime(start)} - ${formatTime(end)}", // Start to End time
-                style: const TextStyle(fontSize: 12,  color: Colors.black87),
+                "${formatTime(start)} - ${formatTime(end)}  •  ${formatDuration(start, end)}", 
+                style: const TextStyle(fontSize: 12, color: Colors.black87),
               ),
             ],
           ),
+
           const SizedBox(height: 5),
+
 
           /// 📍 LOCATION
           Row(
