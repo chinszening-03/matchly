@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../services/auth_service.dart'; 
+import 'activitiy_details_screen.dart';
 
 class ActivityListScreen extends StatefulWidget {
   final String sport;
@@ -597,7 +598,16 @@ class _ActivityListScreenState extends State<ActivityListScreen> {
     // Prevent negative empty circles if data is ever weird
     if (emptyCircles < 0) emptyCircles = 0; 
 
-    return Container(
+    return GestureDetector(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => ActivityDetailsScreen(activityId: doc.id),
+          ),
+        );
+      },
+      child: Container(
       width: double.infinity, // Set to fill screen width for vertical list
       margin: const EdgeInsets.only(bottom: 16), // Bottom margin for vertical scrolling
       decoration: BoxDecoration(
@@ -606,7 +616,7 @@ class _ActivityListScreenState extends State<ActivityListScreen> {
         border: Border.all(color: Colors.grey.shade100),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
+            color: Colors.black.withValues(alpha: 0.04),
             blurRadius: 10,
             offset: const Offset(0, 4),
           )
@@ -620,7 +630,7 @@ class _ActivityListScreenState extends State<ActivityListScreen> {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
             decoration: BoxDecoration(
-              color: const Color(0xFF0C3169).withOpacity(0.1), // Soft background
+              color: const Color(0xFF0C3169).withValues(alpha: 0.1), // Soft background
               borderRadius: BorderRadius.circular(20),
             ),
             child: Text(
@@ -693,7 +703,7 @@ class _ActivityListScreenState extends State<ActivityListScreen> {
                       ),
                       child: CircleAvatar(
                         radius: 18, 
-                        backgroundColor: const Color(0xFF0C3169).withOpacity(0.1),
+                        backgroundColor: const Color(0xFF0C3169).withValues(alpha: 0.1),
                         backgroundImage: profilePicUrl.isNotEmpty ? NetworkImage(profilePicUrl) : null,
                         child: profilePicUrl.isEmpty 
                             ? const Icon(Icons.person, size: 20, color: Color(0xFF0C3169))
@@ -869,6 +879,6 @@ class _ActivityListScreenState extends State<ActivityListScreen> {
             ),
         ],
       ),
-    );
+    ));
   }
 }
