@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'activity_details_screen.dart';
+import 'create_activity_details_screen.dart';
 
 class CreateActivityScreen extends StatefulWidget {
   const CreateActivityScreen({super.key});
