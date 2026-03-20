@@ -13,8 +13,32 @@ class ActivityListScreen extends StatefulWidget {
   
 String formatDate(Timestamp? timestamp) {
   if (timestamp == null) return "";
+  
   final date = timestamp.toDate();
-  return "${date.day}/${date.month}/${date.year}";
+  final now = DateTime.now();
+  
+  // Strip out the hours/minutes to accurately compare just the calendar days
+  final today = DateTime(now.year, now.month, now.day);
+  final tomorrow = today.add(const Duration(days: 1));
+  final targetDate = DateTime(date.year, date.month, date.day);
+  
+  String dayName;
+  
+  if (targetDate == today) {
+    dayName = "Today";
+  } else if (targetDate == tomorrow) {
+    dayName = "Tomorrow";
+  } else {
+    // If it's not today or tomorrow, get the full day name
+    List<String> days = [
+      "Monday", "Tuesday", "Wednesday", "Thursday", 
+      "Friday", "Saturday", "Sunday"
+    ];
+    dayName = days[date.weekday - 1];
+  }
+
+  // Returns formats like: "Today, 19/3/2026" or "Monday, 23/3/2026"
+  return "$dayName, ${date.day}/${date.month}/${date.year}";
 }
 
 String formatTime(Timestamp? timestamp) {
@@ -93,7 +117,7 @@ class _ActivityListScreenState extends State<ActivityListScreen> {
 
   String _formatDayName(DateTime date) {
     if (_isSameDay(date, DateTime.now())) return "Today";
-    if (_isSameDay(date, DateTime.now().add(const Duration(days: 1)))) return "Tmr";
+    if (_isSameDay(date, DateTime.now().add(const Duration(days: 1)))) return "Tomorrow";
     List<String> days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
     return days[date.weekday - 1];
   }
@@ -509,6 +533,7 @@ class _ActivityListScreenState extends State<ActivityListScreen> {
     final start = data["startTime"] as Timestamp?;
     final end = data["endTime"] as Timestamp?;
 
+    // --- AUTH & PARTICIPANT LOGIC ---
     final currentUserId = AuthService().getCurrentUser()?.uid;
     final createdBy = data["createdBy"] ?? "";
     final participants = List<String>.from(data["participants"] ?? []);
@@ -517,145 +542,262 @@ class _ActivityListScreenState extends State<ActivityListScreen> {
     final hasJoined = participants.contains(currentUserId);
     final isFull = participants.length >= max;
 
-    return Container(
-      width: double.infinity, 
-      margin: const EdgeInsets.only(bottom: 16), 
+    // Dynamically build the details string (Players + Type + Price)
+    String detailsText = "${participants.length}/$max players • $gameType";
+    if (price > 0) {
+      detailsText += " • RM $price";
+    }
 
+    // --- AVATAR LOGIC SETUP ---
+    int maxDisplay = 7; // Maximum number of circles to draw before showing "+X"
+    int currentCount = participants.length;
+    
+    int filledCircles = currentCount > maxDisplay ? maxDisplay : currentCount;
+    int emptyCircles = max > maxDisplay ? maxDisplay - filledCircles : max - filledCircles;
+    
+    // Prevent negative empty circles if data is ever weird
+    if (emptyCircles < 0) emptyCircles = 0; 
+
+    return Container(
+      width: double.infinity, // Set to fill screen width for vertical list
+      margin: const EdgeInsets.only(bottom: 16), // Bottom margin for vertical scrolling
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.grey.shade100),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 8,
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
           )
         ],
       ),
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           /// 🔵 SPORT TAG
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
             decoration: BoxDecoration(
-              color: const Color(0xFF0D47A1),
+              color: const Color(0xFF0C3169).withOpacity(0.1), // Soft background
               borderRadius: BorderRadius.circular(20),
             ),
             child: Text(
               sport.toUpperCase(),
               style: const TextStyle(
-                color: Colors.white,
+                color: Color(0xFF0C3169), // Primary colored text
                 fontSize: 10,
-                fontWeight: FontWeight.bold,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 0.5,
               ),
             ),
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 12),
 
           /// 🏸 GAME NAME
           Text(
             name,
             style: const TextStyle(
-              fontSize: 16,
+              fontSize: 18,
               fontWeight: FontWeight.bold,
+              color: Colors.black87,
             ),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 10),
 
-          /// 👥 PLAYERS + TYPE
+          /// 👥 AVATARS ROW (FETCHES FROM FIRESTORE)
+          FutureBuilder<List<DocumentSnapshot>>(
+            future: Future.wait(
+              participants.take(maxDisplay).map(
+                (uid) => FirebaseFirestore.instance.collection("users").doc(uid).get()
+              )
+            ),
+            builder: (context, snapshot) {
+              List<Widget> avatarWidgets = [];
+
+              // 1. Generate Filled Avatars (Loading State)
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                for (int i = 0; i < filledCircles; i++) {
+                  avatarWidgets.add(
+                    Align(
+                      widthFactor: 0.75,
+                      child: Container(
+                        width: 40, height: 40,
+                        margin: const EdgeInsets.only(right: 6),
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle, 
+                          color: Colors.grey.shade200,
+                          border: Border.all(color: Colors.white, width: 2),
+                        ),
+                      )
+                    )
+                  );
+                }
+              } 
+              // 1. Generate Filled Avatars (Loaded State)
+              else if (snapshot.hasData) {
+                for (int i = 0; i < filledCircles; i++) {
+                  var userDoc = snapshot.data![i].data() as Map<String, dynamic>?;
+                  String profilePicUrl = userDoc?["profilePicUrl"] ?? "";
+
+                  avatarWidgets.add(
+                    Container(
+                      margin: const EdgeInsets.only(right: 6), // Creates the gap
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        border: Border.all(color: Colors.white, width: 2),
+                        boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 4)],
+                      ),
+                      child: CircleAvatar(
+                        radius: 18, 
+                        backgroundColor: const Color(0xFF0C3169).withOpacity(0.1),
+                        backgroundImage: profilePicUrl.isNotEmpty ? NetworkImage(profilePicUrl) : null,
+                        child: profilePicUrl.isEmpty 
+                            ? const Icon(Icons.person, size: 20, color: Color(0xFF0C3169))
+                            : null, 
+                      ),
+                    ),
+                  );
+                }
+              }
+
+              // 2. Generate Empty Avatars
+              for (int i = 0; i < emptyCircles; i++) {
+                avatarWidgets.add(
+                  Container(
+                    width: 40, 
+                    height: 40,
+                    margin: const EdgeInsets.only(right: 6), 
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: Colors.grey.shade50,
+                      border: Border.all(color: Colors.grey.shade300, width: 1.5, strokeAlign: BorderSide.strokeAlignInside),
+                    ),
+                  ),
+                );
+              }
+              return Row(children: avatarWidgets);
+            },
+          ),
+          
+          const SizedBox(height: 20),
+
+          /// 📌 TYPE + PRICE
           Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Icon(Icons.people, size: 14, color: Colors.grey),
-              const SizedBox(width: 4),
-              Text(
-                "${participants.length}/$max players • $gameType", 
-                style: const TextStyle(
-                  fontSize: 12,
-                  color: Colors.grey,
+              const Padding(
+                padding: EdgeInsets.only(top: 2),
+                child: Icon(Icons.people_outline, size: 16, color: Color(0xFF0C3169)),
+              ),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  detailsText,
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: Colors.grey.shade700,
+                    fontWeight: FontWeight.w500,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis, 
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 6),
-
-          /// 💰 PRICE
-          if (price > 0)
-            Row(
-              children: [
-                const Icon(Icons.attach_money, size: 14, color: Colors.grey),
-                const SizedBox(width: 4),
-                Text(
-                  "RM $price / pax",
-                  style: const TextStyle(
-                    fontSize: 12,
-                    color: Colors.grey,
-                  ),
-                ),
-              ],
-            ),
-          const SizedBox(height: 10),
-          const Divider(),
-          const SizedBox(height: 8),
+            
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 10),
+            child: Divider(height: 1, thickness: 1, color: Color(0xFFF0F0F0)),
+          ),
 
           /// 📅 DATE
           Row(
             children: [
-              const Icon(Icons.calendar_month, size: 14),
-              const SizedBox(width: 6),
+              Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade100,
+                  borderRadius: BorderRadius.circular(8)
+                ),
+                child: const Icon(Icons.calendar_today, size: 14, color: Color(0xFF0C3169)),
+              ),
+              const SizedBox(width: 8),
               Text(
                 formatDate(start),
-                style: const TextStyle(fontSize: 12),
+                style: const TextStyle(fontSize: 12,  color: Colors.black87),
               ),
             ],
           ),
-          const SizedBox(height: 6),
+          const SizedBox(height: 5),
 
           /// ⏰ TIME
           Row(
             children: [
-              const Icon(Icons.access_time, size: 14),
-              const SizedBox(width: 6),
+              Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade100,
+                  borderRadius: BorderRadius.circular(8)
+                ),
+                child: const Icon(Icons.access_time, size: 14, color: Color(0xFF0C3169)),
+              ),
+              const SizedBox(width: 8),
               Text(
-                "${formatTime(start)} - ${formatTime(end)}",
-                style: const TextStyle(fontSize: 12),
+                "${formatTime(start)} - ${formatTime(end)}", // Start to End time
+                style: const TextStyle(fontSize: 12,  color: Colors.black87),
               ),
             ],
           ),
-          const SizedBox(height: 6),
+          const SizedBox(height: 5),
 
           /// 📍 LOCATION
           Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Icon(Icons.location_on, size: 14),
-              const SizedBox(width: 6),
+              Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade100,
+                  borderRadius: BorderRadius.circular(8)
+                ),
+                child: const Icon(Icons.location_on_outlined, size: 14, color: Color(0xFF0C3169)),
+              ),
+              const SizedBox(width: 8),
               Expanded(
-                child: Text(
-                  location,
-                  style: const TextStyle(fontSize: 12),
-                  overflow: TextOverflow.ellipsis,
+                child: Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: Text(
+                    location,
+                    style: const TextStyle(fontSize: 12, color: Colors.black87, height: 1.2),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
               ),
             ],
           ),
-          
+
           const SizedBox(height: 16),
 
           /// 🔵 JOIN BUTTON UI
           if (!isCreator)
             SizedBox(
               width: double.infinity,
-              height: 45,
+              height: 48,
               child: ElevatedButton(
                 onPressed: (hasJoined || isFull) ? null : () => joinActivity(doc.id),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF0D47A1),
+                  backgroundColor: const Color(0xFF0C3169),
                   disabledBackgroundColor: Colors.grey.shade300,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(10),
                   ),
+                  elevation: 0,
                 ),
                 child: Text(
                   hasJoined
@@ -666,6 +808,7 @@ class _ActivityListScreenState extends State<ActivityListScreen> {
                   style: TextStyle(
                     color: (hasJoined || isFull) ? Colors.grey.shade600 : Colors.white,
                     fontWeight: FontWeight.bold,
+                    fontSize: 16,
                   ),
                 ),
               ),
@@ -673,12 +816,15 @@ class _ActivityListScreenState extends State<ActivityListScreen> {
             
           if (isCreator)
             Center(
-              child: Text(
-                "You are the host",
-                style: TextStyle(
-                  color: Colors.grey.shade500,
-                  fontSize: 12,
-                  fontStyle: FontStyle.italic,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8.0),
+                child: Text(
+                  "You are the host",
+                  style: TextStyle(
+                    color: Colors.grey.shade500,
+                    fontSize: 14,
+                    fontStyle: FontStyle.italic,
+                  ),
                 ),
               ),
             ),
