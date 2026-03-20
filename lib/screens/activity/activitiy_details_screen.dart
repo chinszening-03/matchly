@@ -81,195 +81,284 @@ class _ActivityDetailsScreenState extends State<ActivityDetailsScreen> {
   Widget build(BuildContext context) {
     final currentUserId = AuthService().getCurrentUser()?.uid;
 
-    return Scaffold(
-      backgroundColor: Colors.white,
-      appBar: AppBar(
-        title: const Text("Game Details", style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
-        backgroundColor: Colors.white,
-        elevation: 0,
-        iconTheme: const IconThemeData(color: Colors.black),
-      ),
-      // Use a StreamBuilder so the UI (like participant count) updates live!
-      body: StreamBuilder<DocumentSnapshot>(
-        stream: FirebaseFirestore.instance.collection("activities").doc(widget.activityId).snapshots(),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return Center(child: CircularProgressIndicator(color: primaryColor));
-          }
-          if (!snapshot.hasData || !snapshot.data!.exists) {
-            return const Center(child: Text("Activity not found or deleted."));
-          }
-
-          final data = snapshot.data!.data() as Map<String, dynamic>;
-
-          final sport = data["sport"] ?? "Sport";
-          final name = data["name"] ?? "Game Name";
-          final location = data["location"] ?? "No Location Provided";
-          final description = data["description"] ?? "No description provided for this game.";
-          final gameType = data["gameType"] ?? "Casual";
-          final max = data["maxPeople"] ?? 0;
-          final price = data["price"] ?? 0;
-          final start = data["startTime"] as Timestamp?;
-          final end = data["endTime"] as Timestamp?;
-          final createdBy = data["createdBy"] ?? "";
-          final participants = List<String>.from(data["participants"] ?? []);
-
-          final isCreator = currentUserId == createdBy;
-          final hasJoined = participants.contains(currentUserId);
-          final isFull = participants.length >= max;
-
-          return Column(
-            children: [
-              Expanded(
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.all(20),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      /// --- HEADER ---
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                        decoration: BoxDecoration(
-                          color: primaryColor.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: Text(
-                          sport.toUpperCase(),
-                          style: TextStyle(color: primaryColor, fontSize: 12, fontWeight: FontWeight.w800, letterSpacing: 0.5),
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      Text(
-                        name,
-                        style: const TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: Colors.black87),
-                      ),
-                      const SizedBox(height: 20),
-
-                      /// --- INFO BOXES ---
-                      _buildInfoRow(Icons.calendar_today, "Date", formatDate(start)),
-                      const SizedBox(height: 16),
-                      _buildInfoRow(Icons.access_time, "Time", "${formatTime(start)} - ${formatTime(end)} (${formatDuration(start, end)})"),
-                      const SizedBox(height: 16),
-                      _buildInfoRow(Icons.location_on_outlined, "Location", location),
-                      const SizedBox(height: 16),
-                      _buildInfoRow(Icons.sports_esports_outlined, "Game Type", gameType),
-                      const SizedBox(height: 16),
-                      if (price > 0) _buildInfoRow(Icons.attach_money, "Price", "RM $price / pax"),
-                      
-                      const Padding(
-                        padding: EdgeInsets.symmetric(vertical: 24),
-                        child: Divider(height: 1, thickness: 1, color: Color(0xFFF0F0F0)),
-                      ),
-
-                      /// --- DESCRIPTION ---
-                      const Text("About this game", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                      const SizedBox(height: 10),
-                      Text(
-                        description.isEmpty ? "No description provided." : description,
-                        style: TextStyle(fontSize: 14, color: Colors.grey.shade700, height: 1.5),
-                      ),
-                      
-                      const Padding(
-                        padding: EdgeInsets.symmetric(vertical: 24),
-                        child: Divider(height: 1, thickness: 1, color: Color(0xFFF0F0F0)),
-                      ),
-
-                      /// --- PARTICIPANTS ---
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          const Text("Participants", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                          Text("${participants.length}/$max Joined", style: TextStyle(color: primaryColor, fontWeight: FontWeight.bold)),
-                        ],
-                      ),
-                      const SizedBox(height: 16),
-                      
-                      // Fetch user data for all participants
-                      FutureBuilder<List<DocumentSnapshot>>(
-                        future: Future.wait(
-                          participants.map((uid) => FirebaseFirestore.instance.collection("users").doc(uid).get())
-                        ),
-                        builder: (context, userSnapshot) {
-                          if (userSnapshot.connectionState == ConnectionState.waiting) {
-                            return const Center(child: CircularProgressIndicator());
-                          }
-                          if (!userSnapshot.hasData || userSnapshot.data!.isEmpty) {
-                            return const Text("No one has joined yet.");
-                          }
-
-                          return ListView.builder(
-                            shrinkWrap: true,
-                            physics: const NeverScrollableScrollPhysics(), // Disables inner scrolling
-                            itemCount: userSnapshot.data!.length,
-                            itemBuilder: (context, index) {
-                              var userDoc = userSnapshot.data![index].data() as Map<String, dynamic>?;
-                              String pName = userDoc?["name"] ?? "Player";
-                              String pPic = userDoc?["profilePicUrl"] ?? "";
-                              bool isHost = participants[index] == createdBy;
-
-                              return ListTile(
-                                contentPadding: EdgeInsets.zero,
-                                leading: CircleAvatar(
-                                  radius: 22,
-                                  backgroundColor: primaryColor.withOpacity(0.1),
-                                  backgroundImage: pPic.isNotEmpty ? NetworkImage(pPic) : null,
-                                  child: pPic.isEmpty ? Icon(Icons.person, color: primaryColor) : null,
-                                ),
-                                title: Text(pName, style: const TextStyle(fontWeight: FontWeight.w600)),
-                                subtitle: isHost ? Text("Host", style: TextStyle(color: primaryColor, fontSize: 12)) : null,
-                              );
-                            },
-                          );
-                        }
-                      ),
-                      const SizedBox(height: 20),
-                    ],
-                  ),
-                ),
-              ),
-
-              /// --- BOTTOM ACTION BAR ---
-              Container(
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, -4))],
-                ),
-                child: SafeArea(
-                  child: isCreator
-                      ? Center(
-                          child: Text(
-                            "You are the host of this game",
-                            style: TextStyle(color: Colors.grey.shade600, fontSize: 14, fontStyle: FontStyle.italic),
-                          ),
-                        )
-                      : SizedBox(
-                          width: double.infinity,
-                          height: 50,
-                          child: ElevatedButton(
-                            onPressed: (hasJoined || isFull) ? null : joinActivity,
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: primaryColor,
-                              disabledBackgroundColor: Colors.grey.shade300,
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                              elevation: 0,
-                            ),
-                            child: Text(
-                              hasJoined ? "Joined" : isFull ? "Game Full" : "Join Game",
-                              style: TextStyle(
-                                color: (hasJoined || isFull) ? Colors.grey.shade600 : Colors.white,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 16,
-                              ),
-                            ),
-                          ),
-                        ),
-                ),
-              ),
-            ],
+    return StreamBuilder<DocumentSnapshot>(
+      stream: FirebaseFirestore.instance.collection("activities").doc(widget.activityId).snapshots(),
+      builder: (context, snapshot) {
+        
+        // Loading State
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return Scaffold(
+            backgroundColor: Colors.white,
+            appBar: AppBar(backgroundColor: Colors.white, elevation: 0),
+            body: Center(child: CircularProgressIndicator(color: primaryColor)),
           );
         }
-      ),
+
+        // Error / Deleted State
+        if (!snapshot.hasData || !snapshot.data!.exists) {
+          return Scaffold(
+            backgroundColor: Colors.white,
+            appBar: AppBar(backgroundColor: Colors.white, elevation: 0),
+            body: const Center(child: Text("Activity not found or deleted.")),
+          );
+        }
+
+        // Data Loaded Successfully
+        final data = snapshot.data!.data() as Map<String, dynamic>;
+
+        final sport = data["sport"] ?? "Sport";
+        final name = data["name"] ?? "Game Name";
+        final location = data["location"] ?? "No Location Provided";
+        final description = data["description"] ?? "No description provided for this game.";
+        final gameType = data["gameType"] ?? "Casual";
+        final max = data["maxPeople"] ?? 0;
+        final price = data["price"] ?? 0;
+        final start = data["startTime"] as Timestamp?;
+        final end = data["endTime"] as Timestamp?;
+        
+        // --- NEW COURT LOGIC EXTRACTED HERE ---
+        // Checking common keys you might have used in CreateActivityScreen
+        final isCourtBooked = data["isCourtBooked"] ?? data["courtBooked"] ?? false;
+        final courtDetails = data["courtDetails"] ?? data["courtNumber"] ?? data["court"] ?? "";
+
+        final createdBy = data["createdBy"] ?? "";
+        final participants = List<String>.from(data["participants"] ?? []);
+
+        final isCreator = currentUserId == createdBy;
+        final hasJoined = participants.contains(currentUserId);
+        final isFull = participants.length >= max;
+
+        return DefaultTabController(
+          length: 2,
+          child: Scaffold(
+            backgroundColor: Colors.white,
+            appBar: AppBar(
+              backgroundColor: Colors.white,
+              elevation: 0,
+              iconTheme: const IconThemeData(color: Colors.black),
+              
+              /// --- SIMPLE APP BAR TITLE ---
+              title: Text(
+                name,
+                style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 18),
+              ),
+              
+              /// --- TAB BAR NAVIGATION ---
+              bottom: TabBar(
+                labelColor: primaryColor,
+                unselectedLabelColor: Colors.grey.shade500,
+                indicatorColor: primaryColor,
+                indicatorWeight: 3,
+                tabs: const [
+                  Tab(text: "Details"),
+                  Tab(text: "Chat"),
+                ],
+              ),
+            ),
+            
+            /// --- TAB CONTENT ---
+            body: TabBarView(
+              children: [
+                
+                // TAB 1: DETAILS
+                Column(
+                  children: [
+                    Expanded(
+                      child: SingleChildScrollView(
+                        padding: const EdgeInsets.all(20),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            
+                            /// --- GAME TYPE & SPORT ROW ---
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Row(
+                                  children: [
+                                    Icon(Icons.sports_esports, size: 16, color: primaryColor),
+                                    const SizedBox(width: 6),
+                                    Text(
+                                      gameType.toUpperCase(),
+                                      style: TextStyle(color: primaryColor, fontSize: 12, fontWeight: FontWeight.w800, letterSpacing: 0.5),
+                                    ),
+                                  ],
+                                ),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                  decoration: BoxDecoration(
+                                    color: primaryColor.withOpacity(0.1),
+                                    borderRadius: BorderRadius.circular(20),
+                                  ),
+                                  child: Text(
+                                    sport.toUpperCase(),
+                                    style: TextStyle(color: primaryColor, fontSize: 10, fontWeight: FontWeight.w800, letterSpacing: 0.5),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+
+                            /// --- GAME NAME ---
+                            Text(
+                              name,
+                              style: const TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: Colors.black87, height: 1.2),
+                            ),
+                            const SizedBox(height: 24),
+
+                            /// --- INFO BOXES ---
+                            _buildInfoRow(Icons.calendar_today, "Date", formatDate(start)),
+                            const SizedBox(height: 16),
+                            _buildInfoRow(Icons.access_time, "Time", "${formatTime(start)} - ${formatTime(end)} (${formatDuration(start, end)})"),
+                            const SizedBox(height: 16),
+                            _buildInfoRow(Icons.location_on_outlined, "Location", location),
+                            const SizedBox(height: 16),
+                            
+                            // --- COURT BOOKED DISPLAY ---
+                            // Only displays if the host toggled it ON and typed something in
+                            if (isCourtBooked && courtDetails.toString().trim().isNotEmpty) ...[
+                              _buildInfoRow(Icons.check_circle_outline, "Court Booked", courtDetails.toString()),
+                              const SizedBox(height: 16),
+                            ],
+
+                            // --- PRICE DISPLAY ---
+                            if (price > 0) _buildInfoRow(Icons.attach_money, "Price", "RM $price / pax"),
+                            
+                            const Padding(
+                              padding: EdgeInsets.symmetric(vertical: 24),
+                              child: Divider(height: 1, thickness: 1, color: Color(0xFFF0F0F0)),
+                            ),
+
+                            /// --- DESCRIPTION ---
+                            const Text("About this game", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                            const SizedBox(height: 10),
+                            Text(
+                              description.isEmpty ? "No description provided." : description,
+                              style: TextStyle(fontSize: 14, color: Colors.grey.shade700, height: 1.5),
+                            ),
+                            
+                            const Padding(
+                              padding: EdgeInsets.symmetric(vertical: 24),
+                              child: Divider(height: 1, thickness: 1, color: Color(0xFFF0F0F0)),
+                            ),
+
+                            /// --- PARTICIPANTS ---
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                const Text("Participants", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                                Text("${participants.length}/$max Joined", style: TextStyle(color: primaryColor, fontWeight: FontWeight.bold)),
+                              ],
+                            ),
+                            const SizedBox(height: 16),
+                            
+                            FutureBuilder<List<DocumentSnapshot>>(
+                              future: Future.wait(
+                                participants.map((uid) => FirebaseFirestore.instance.collection("users").doc(uid).get())
+                              ),
+                              builder: (context, userSnapshot) {
+                                if (userSnapshot.connectionState == ConnectionState.waiting) {
+                                  return const Center(child: CircularProgressIndicator());
+                                }
+                                if (!userSnapshot.hasData || userSnapshot.data!.isEmpty) {
+                                  return const Text("No one has joined yet.");
+                                }
+
+                                return ListView.builder(
+                                  shrinkWrap: true,
+                                  physics: const NeverScrollableScrollPhysics(), 
+                                  itemCount: userSnapshot.data!.length,
+                                  itemBuilder: (context, index) {
+                                    var userDoc = userSnapshot.data![index].data() as Map<String, dynamic>?;
+                                    String pName = userDoc?["name"] ?? "Player";
+                                    String pPic = userDoc?["profilePicUrl"] ?? "";
+                                    bool isHost = participants[index] == createdBy;
+
+                                    return ListTile(
+                                      contentPadding: EdgeInsets.zero,
+                                      leading: CircleAvatar(
+                                        radius: 22,
+                                        backgroundColor: primaryColor.withOpacity(0.1),
+                                        backgroundImage: pPic.isNotEmpty ? NetworkImage(pPic) : null,
+                                        child: pPic.isEmpty ? Icon(Icons.person, color: primaryColor) : null,
+                                      ),
+                                      title: Text(pName, style: const TextStyle(fontWeight: FontWeight.w600)),
+                                      subtitle: isHost ? Text("Host", style: TextStyle(color: primaryColor, fontSize: 12)) : null,
+                                    );
+                                  },
+                                );
+                              }
+                            ),
+                            const SizedBox(height: 20),
+                          ],
+                        ),
+                      ),
+                    ),
+
+                    /// --- BOTTOM ACTION BAR (ONLY ON DETAILS TAB) ---
+                    Container(
+                      padding: const EdgeInsets.all(20),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, -4))],
+                      ),
+                      child: SafeArea(
+                        child: isCreator
+                            ? Center(
+                                child: Text(
+                                  "You are the host of this game",
+                                  style: TextStyle(color: Colors.grey.shade600, fontSize: 14, fontStyle: FontStyle.italic),
+                                ),
+                              )
+                            : SizedBox(
+                                width: double.infinity,
+                                height: 50,
+                                child: ElevatedButton(
+                                  onPressed: (hasJoined || isFull) ? null : joinActivity,
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: primaryColor,
+                                    disabledBackgroundColor: Colors.grey.shade300,
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                    elevation: 0,
+                                  ),
+                                  child: Text(
+                                    hasJoined ? "Joined" : isFull ? "Game Full" : "Join Game",
+                                    style: TextStyle(
+                                      color: (hasJoined || isFull) ? Colors.grey.shade600 : Colors.white,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 16,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                      ),
+                    ),
+                  ],
+                ),
+
+                // TAB 2: CHAT (PLACEHOLDER)
+                Container(
+                  color: Colors.grey.shade50,
+                  child: Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.chat_bubble_outline, size: 48, color: Colors.grey.shade400),
+                        const SizedBox(height: 16),
+                        Text(
+                          "Chat feature coming soon!",
+                          style: TextStyle(color: Colors.grey.shade600, fontSize: 16, fontWeight: FontWeight.w500),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                
+              ],
+            ),
+          ),
+        );
+      }
     );
   }
 

@@ -577,6 +577,9 @@ AnimatedSwitcher(
                     "description": descriptionController.text,
                     "location": locationController.text,
 
+                    "isCourtBooked": courtBooked,
+                    "courtDetails": courtBooked ? courtController.text : "",
+
                     "gameType": gameType,
                     "minPeople": int.tryParse(minPeopleController.text) ?? 0,
                     "maxPeople": int.tryParse(maxPeopleController.text) ?? 0,
