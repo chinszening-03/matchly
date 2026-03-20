@@ -264,15 +264,15 @@ class _ActivityDetailsScreenState extends State<ActivityDetailsScreen> {
                             _buildInfoRow(Icons.location_on_outlined, "Location", location),
                             const SizedBox(height: 16),
                             
-                            // --- COURT BOOKED DISPLAY ---
-                            if (isCourtBooked && courtDetails.toString().trim().isNotEmpty) ...[
-                              _buildInfoRow(Icons.check_circle_outline, "Court Booked", courtDetails.toString()),
-                              const SizedBox(height: 16),
-                            ],
-
                             // --- 👇 NEW DYNAMIC MAP UI SNIPPET 👇 ---
                             if (coords != null) ...[
                               _buildDynamicMap(activityLatLng, location),
+                              const SizedBox(height: 16),
+                            ],
+
+                            // --- COURT BOOKED DISPLAY ---
+                            if (isCourtBooked && courtDetails.toString().trim().isNotEmpty) ...[
+                              _buildInfoRow(Icons.check_circle_outline, "Court Booked", courtDetails.toString()),
                               const SizedBox(height: 16),
                             ],
 
