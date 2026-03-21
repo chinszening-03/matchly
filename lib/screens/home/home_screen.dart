@@ -352,9 +352,8 @@ Widget activityCard(QueryDocumentSnapshot doc) {
 
     // --- AVATAR LOGIC SETUP ---
     int maxDisplay = 6; // Maximum number of circles to draw before showing "+X"
-    int currentCount = participants.length;
     
-    int filledCircles = currentCount > maxDisplay ? maxDisplay : currentCount;
+    int filledCircles = totalJoined > maxDisplay ? maxDisplay : totalJoined;
     int emptyCircles = max > maxDisplay ? maxDisplay - filledCircles : max - filledCircles;
     
     // Prevent negative empty circles if data is ever weird
@@ -420,9 +419,8 @@ Widget activityCard(QueryDocumentSnapshot doc) {
           ),
           const SizedBox(height: 10),
 
-          /// 👥 AVATARS ROW (NOW FETCHES FROM FIRESTORE)
+          /// 👥 AVATARS ROW
           FutureBuilder<List<DocumentSnapshot>>(
-            // Fetch the user documents for the participants (up to the maxDisplay limit)
             future: Future.wait(
               participants.take(maxDisplay).map(
                 (uid) => FirebaseFirestore.instance.collection("users").doc(uid).get()
@@ -431,50 +429,55 @@ Widget activityCard(QueryDocumentSnapshot doc) {
             builder: (context, snapshot) {
               List<Widget> avatarWidgets = [];
 
-              // 1. Generate Filled Avatars (Loading State)
+              // 1. Generate Actual Users
               if (snapshot.connectionState == ConnectionState.waiting) {
-                for (int i = 0; i < filledCircles; i++) {
+                // Loading placeholders
+                for (int i = 0; i < (participants.length > maxDisplay ? maxDisplay : participants.length); i++) {
                   avatarWidgets.add(
-                    Align(
-                      widthFactor: 0.75,
-                      child: Container(
-                        width: 40, height: 40,
-                        margin: const EdgeInsets.only(right: 6),
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle, 
-                          color: Colors.grey.shade200,
-                          border: Border.all(color: Colors.white, width: 2),
-                        ),
-                      )
+                    Container(
+                      width: 40, height: 40, margin: const EdgeInsets.only(right: 6),
+                      decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.grey.shade200, border: Border.all(color: Colors.white, width: 2)),
                     )
                   );
                 }
-              } 
-              // 1. Generate Filled Avatars (Loaded State)
-              else if (snapshot.hasData) {
-                for (int i = 0; i < filledCircles; i++) {
+              } else if (snapshot.hasData) {
+                for (int i = 0; i < snapshot.data!.length; i++) {
                   var userDoc = snapshot.data![i].data() as Map<String, dynamic>?;
                   String profilePicUrl = userDoc?["profilePicUrl"] ?? "";
 
                   avatarWidgets.add(
                     Container(
-                      margin: const EdgeInsets.only(right: 6), // Creates the gap
+                      margin: const EdgeInsets.only(right: 6), 
                       decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        border: Border.all(color: Colors.white, width: 2),
-                        boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 4)],
+                        shape: BoxShape.circle, border: Border.all(color: Colors.white, width: 2), boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 4)],
                       ),
                       child: CircleAvatar(
-                        radius: 18, // INCREASED RADIUS
+                        radius: 18, 
                         backgroundColor: const Color(0xFF0C3169).withOpacity(0.1),
                         backgroundImage: profilePicUrl.isNotEmpty ? NetworkImage(profilePicUrl) : null,
-                        child: profilePicUrl.isEmpty 
-                            ? const Icon(Icons.person, size: 20, color: Color(0xFF0C3169))
-                            : null, 
+                        child: profilePicUrl.isEmpty ? const Icon(Icons.person, size: 20, color: Color(0xFF0C3169)) : null, 
                       ),
                     ),
                   );
                 }
+              }
+
+              // 2. Generate Reserved Spots (Orange Avatars)
+              int spotsLeftToDisplay = maxDisplay - avatarWidgets.length;
+              for (int i = 0; i < reservedSpots.length && i < spotsLeftToDisplay; i++) {
+                avatarWidgets.add(
+                  Container(
+                    margin: const EdgeInsets.only(right: 6), 
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle, border: Border.all(color: Colors.white, width: 2), boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 4)],
+                    ),
+                    child: CircleAvatar(
+                      radius: 18, 
+                      backgroundColor:  Color(0xFF0C3169).withOpacity(0.1),
+                      child: const Icon(Icons.person, size: 20, color: Color(0xFF0C3169)), 
+                    ),
+                  ),
+                );
               }
 
               // 2. Generate Empty Avatars
