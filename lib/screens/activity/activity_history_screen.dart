@@ -241,7 +241,7 @@ class ActivityHistoryScreen extends StatelessWidget {
                 }
               }
 
-              // 2. Generate Reserved Spots (Orange Avatars)
+              // 2. Generate Reserved Spots (Dark blue Avatars)
               int spotsLeftToDisplay = maxDisplay - avatarWidgets.length;
               for (int i = 0; i < reservedSpots.length && i < spotsLeftToDisplay; i++) {
                 avatarWidgets.add(

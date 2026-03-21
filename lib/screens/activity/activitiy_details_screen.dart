@@ -38,11 +38,11 @@ class _ActivityDetailsScreenState extends State<ActivityDetailsScreen> {
           children: [
             CircleAvatar(
               radius: 28,
-              backgroundColor: isReserved ? Colors.orange.shade100 : primaryColor.withOpacity(0.1),
+              backgroundColor: isReserved ? Color(0xFF0C3169).withOpacity(0.1) : primaryColor.withOpacity(0.1),
               backgroundImage: imageUrl.isNotEmpty ? NetworkImage(imageUrl) : null,
               child: imageUrl.isEmpty 
-                  ? Icon(isReserved ? Icons.person_pin : Icons.person, 
-                         color: isReserved ? Colors.orange : primaryColor, size: 28) 
+                  ? Icon(isReserved ? Icons.person: Icons.person, 
+                         color: isReserved ? Color(0xFF0C3169) : primaryColor, size: 28) 
                   : null,
             ),
             const SizedBox(height: 6),
