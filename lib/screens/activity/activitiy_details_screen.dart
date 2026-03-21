@@ -21,6 +21,142 @@ class _ActivityDetailsScreenState extends State<ActivityDetailsScreen> {
   // ignore: unused_field
   GoogleMapController? _mapController;
 
+  // --- UI HELPER FOR AVATAR ITEMS ---
+  Widget _buildAvatarColumn({
+    required String name, 
+    required String imageUrl, 
+    required Color primaryColor,
+    bool isHost = false, 
+    bool isReserved = false,
+    VoidCallback? onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: SizedBox(
+        width: 60, // Fixed width prevents messy wrapping
+        child: Column(
+          children: [
+            CircleAvatar(
+              radius: 28,
+              backgroundColor: isReserved ? Colors.orange.shade100 : primaryColor.withOpacity(0.1),
+              backgroundImage: imageUrl.isNotEmpty ? NetworkImage(imageUrl) : null,
+              child: imageUrl.isEmpty 
+                  ? Icon(isReserved ? Icons.person_pin : Icons.person, 
+                         color: isReserved ? Colors.orange : primaryColor, size: 28) 
+                  : null,
+            ),
+            const SizedBox(height: 6),
+            Text(
+              name, 
+              style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
+              maxLines: 1, 
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+            ),
+            if (isHost)
+              Text("Host", style: TextStyle(fontSize: 10, color: primaryColor, fontWeight: FontWeight.bold)),
+            if (isReserved && onTap != null) // Show 'remove' hint for host
+              const Text("Remove", style: TextStyle(fontSize: 10, color: Colors.red)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // --- HOST ACTIONS ---
+  void _showAddPlayerOptions(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (context) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Padding(
+                padding: EdgeInsets.all(16.0),
+                child: Text("Manage Empty Spot", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              ),
+              ListTile(
+                leading: const Icon(Icons.person_add_alt_1),
+                title: const Text("Reserve spot for a friend (Enter name)"),
+                onTap: () {
+                  Navigator.pop(context);
+                  _showReserveSpotDialog(context);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.share),
+                title: const Text("Invite players via app"),
+                subtitle: const Text("(Coming soon)"),
+                onTap: () {
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Invite feature coming soon!")));
+                },
+              ),
+            ],
+          ),
+        );
+      }
+    );
+  }
+
+  void _showReserveSpotDialog(BuildContext context) {
+    final TextEditingController nameController = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text("Reserve Spot"),
+          content: TextField(
+            controller: nameController,
+            decoration: const InputDecoration(hintText: "Friend's name (e.g. John)"),
+            textCapitalization: TextCapitalization.words,
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(context), child: const Text("Cancel")),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: primaryColor),
+              onPressed: () async {
+                if (nameController.text.trim().isEmpty) return;
+                
+                // Safely save the name to a dedicated array in Firestore
+                await FirebaseFirestore.instance.collection("activities").doc(widget.activityId).update({
+                  "reservedSpots": FieldValue.arrayUnion([nameController.text.trim()])
+                });
+                
+                if (context.mounted) Navigator.pop(context);
+              }, 
+              child: const Text("Reserve", style: TextStyle(color: Colors.white))
+            ),
+          ],
+        );
+      }
+    );
+  }
+
+  void _removeReservedSpot(String name) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text("Remove Reservation"),
+        content: Text("Remove '$name' from the game?"),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text("Cancel")),
+          TextButton(
+            onPressed: () async {
+              // Safely remove the name from Firestore
+              await FirebaseFirestore.instance.collection("activities").doc(widget.activityId).update({
+                "reservedSpots": FieldValue.arrayRemove([name])
+              });
+              if (context.mounted) Navigator.pop(context);
+            }, 
+            child: const Text("Remove", style: TextStyle(color: Colors.red))
+          ),
+        ],
+      )
+    );
+  }
   // --- HELPER FUNCTIONS ---
   String formatDate(Timestamp? timestamp) {
     if (timestamp == null) return "";
@@ -171,10 +307,13 @@ class _ActivityDetailsScreenState extends State<ActivityDetailsScreen> {
 
         final createdBy = data["createdBy"] ?? "";
         final participants = List<String>.from(data["participants"] ?? []);
+        final reservedSpots = List<String>.from(data["reservedSpots"] ?? []);
+
+        final totalJoined = participants.length + reservedSpots.length; 
+        final isFull = totalJoined >= max; 
 
         final isCreator = currentUserId == createdBy;
         final hasJoined = participants.contains(currentUserId);
-        final isFull = participants.length >= max;
 
         // Converter GeoPoint to LatLng for Google Maps
         LatLng activityLatLng = const LatLng(3.1390, 101.6869); // Default: KL
@@ -343,52 +482,99 @@ class _ActivityDetailsScreenState extends State<ActivityDetailsScreen> {
 
                             /// --- PARTICIPANTS ---
                             Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                const Text("Participants", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                                Text("${participants.length}/$max Joined", style: TextStyle(color: primaryColor, fontWeight: FontWeight.bold)),
-                              ],
-                            ),
-                            const SizedBox(height: 16),
-                            
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              const Text("Participants", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                              Text("$totalJoined/$max Joined", style: TextStyle(color: primaryColor, fontWeight: FontWeight.bold)),                            ],
+                          ),
+                          const SizedBox(height: 16),
+                                                      
                             FutureBuilder<List<DocumentSnapshot>>(
-                              future: Future.wait(
-                                participants.map((uid) => FirebaseFirestore.instance.collection("users").doc(uid).get())
-                              ),
-                              builder: (context, userSnapshot) {
-                                if (userSnapshot.connectionState == ConnectionState.waiting) {
-                                  return const Center(child: CircularProgressIndicator());
-                                }
-                                if (!userSnapshot.hasData || userSnapshot.data!.isEmpty) {
-                                  return const Text("No one has joined yet.");
-                                }
+                            future: Future.wait(
+                              participants.map((uid) => FirebaseFirestore.instance.collection("users").doc(uid).get())
+                            ),
+                            builder: (context, userSnapshot) {
+                              if (userSnapshot.connectionState == ConnectionState.waiting) {
+                                return const Center(child: CircularProgressIndicator());
+                              }
 
-                                return ListView.builder(
-                                  shrinkWrap: true,
-                                  physics: const NeverScrollableScrollPhysics(), 
-                                  itemCount: userSnapshot.data!.length,
-                                  itemBuilder: (context, index) {
-                                    var userDoc = userSnapshot.data![index].data() as Map<String, dynamic>?;
-                                    String pName = userDoc?["name"] ?? "Player";
-                                    String pPic = userDoc?["profilePicUrl"] ?? "";
-                                    bool isHost = participants[index] == createdBy;
+                              // Prepare lists for rendering
+                              List<Widget> avatarWidgets = [];
 
-                                    return ListTile(
-                                      contentPadding: EdgeInsets.zero,
-                                      leading: CircleAvatar(
-                                        radius: 22,
-                                        backgroundColor: primaryColor.withOpacity(0.1),
-                                        backgroundImage: pPic.isNotEmpty ? NetworkImage(pPic) : null,
-                                        child: pPic.isEmpty ? Icon(Icons.person, color: primaryColor) : null,
-                                      ),
-                                      title: Text(pName, style: const TextStyle(fontWeight: FontWeight.w600)),
-                                      subtitle: isHost ? Text("Host", style: TextStyle(color: primaryColor, fontSize: 12)) : null,
-                                    );
-                                  },
+                              // 1. ADD ACTUAL USERS (from Firestore)
+                              if (userSnapshot.hasData && userSnapshot.data!.isNotEmpty) {
+                                for (int i = 0; i < userSnapshot.data!.length; i++) {
+                                  var userDoc = userSnapshot.data![i].data() as Map<String, dynamic>?;
+                                  String pName = userDoc?["name"] ?? "Player";
+                                  String pPic = userDoc?["profilePicUrl"] ?? "";
+                                  bool isHost = participants[i] == createdBy;
+
+                                  avatarWidgets.add(_buildAvatarColumn(
+                                    name: pName,
+                                    imageUrl: pPic,
+                                    isHost: isHost,
+                                    primaryColor: primaryColor,
+                                  ));
+                                }
+                              }
+
+                              // 2. ADD RESERVED SPOTS (Manually added by host)
+                              List<String> reservedSpots = List<String>.from(data["reservedSpots"] ?? []);
+                              for (String reservedName in reservedSpots) {
+                                avatarWidgets.add(_buildAvatarColumn(
+                                  name: reservedName,
+                                  imageUrl: "", 
+                                  isReserved: true,
+                                  primaryColor: primaryColor,
+                                  onTap: isCreator ? () => _removeReservedSpot(reservedName) : null,
+                                ));
+                              }
+
+                              // 3. CALCULATE EMPTY SPOTS
+                              int totalJoined = participants.length + reservedSpots.length;
+                              int emptySpots = max - totalJoined;
+
+                              // 4. ADD EMPTY/ADD SPOTS
+                              for (int i = 0; i < emptySpots; i++) {
+                                avatarWidgets.add(
+                                  GestureDetector(
+                                    onTap: isCreator ? () => _showAddPlayerOptions(context) : null,
+                                    child: Column(
+                                      children: [
+                                        CircleAvatar(
+                                          radius: 28,
+                                          backgroundColor: Colors.grey.shade100,
+                                          child: Icon(
+                                            isCreator ? Icons.add : Icons.person_outline, 
+                                            color: isCreator ? primaryColor : Colors.grey.shade400,
+                                            size: 28,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 6),
+                                        Text(
+                                          isCreator ? "Add" : "Empty", 
+                                          style: TextStyle(
+                                            fontSize: 12, 
+                                            color: isCreator ? primaryColor : Colors.grey,
+                                            fontWeight: isCreator ? FontWeight.bold : FontWeight.normal
+                                          )
+                                        ),
+                                      ],
+                                    ),
+                                  ),
                                 );
                               }
-                            ),
-                            const SizedBox(height: 20),
+
+                              // Render as a grid/wrap
+                              return Wrap(
+                                spacing: 16, // Horizontal gap
+                                runSpacing: 16, // Vertical gap between rows
+                                alignment: WrapAlignment.start,
+                                children: avatarWidgets,
+                              );
+                            },
+                          ),
+                          const SizedBox(height: 20),
                           ],
                         ),
                       ),
