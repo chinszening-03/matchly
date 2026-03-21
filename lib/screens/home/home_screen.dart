@@ -63,8 +63,10 @@ String formatDuration(Timestamp? start, Timestamp? end) {
 }
 
 class HomeScreen extends StatefulWidget {
+  
   const HomeScreen({super.key});
 
+  
   @override
   State<HomeScreen> createState() => _HomeScreenState();
 }
@@ -72,26 +74,35 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
 
   String name = "";
+  int joinedGamesCount = 0;
 
   @override
   void initState() {
     super.initState();
-    loadUserName();
+    loadUserData();
   }
 
-  Future<void> loadUserName() async {
-
+  Future<void> loadUserData() async {
     final currentUserId = AuthService().getCurrentUser()?.uid;
-
     if (currentUserId == null) return;
 
-    final doc = await FirebaseFirestore.instance
+    // Fetch the user's name
+    final userDoc = await FirebaseFirestore.instance
         .collection("users")
         .doc(currentUserId)
         .get();
 
+    // 👇 2. Fetch the COUNT of past joined games
+    final countSnapshot = await FirebaseFirestore.instance
+        .collection("activities")
+        .where("participants", arrayContains: currentUserId)
+        .where("startTime", isLessThan: DateTime.now()) 
+        .count()
+        .get();
+
     setState(() {
-      name = doc.data()?["name"] ?? "Player";
+      name = userDoc.data()?["name"] ?? "Player";
+      joinedGamesCount = countSnapshot.count ?? 0; // Update the count
     });
   }
 
@@ -167,7 +178,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         MaterialPageRoute(builder: (context) => const ActivityHistoryScreen()),
                       );
                     },
-                    child: statBox(Icons.favorite_border, "Joined Game"),
+                    child: statBox(Icons.favorite_border, "Joined Game: $joinedGamesCount"),
                   ),
                   statBox(Icons.timelapse, "Points"),
                   statBox(Icons.group, "My Club"),
@@ -605,7 +616,7 @@ Widget activityCard(QueryDocumentSnapshot doc) {
   /// Stats Box
   Widget statBox(IconData icon, String text) {
     return Container(
-      width: 105, // Slightly adjusted width to fit perfectly on standard screens
+      width: 112, 
       padding: const EdgeInsets.symmetric(vertical: 14),
       decoration: BoxDecoration(
         color: Colors.white,
@@ -631,6 +642,8 @@ Widget activityCard(QueryDocumentSnapshot doc) {
           const SizedBox(height: 8),
           Text(
             text,
+            textAlign: TextAlign.center,
+            maxLines: 2,
             style: const TextStyle(
               fontSize: 12, 
               fontWeight: FontWeight.w600,
