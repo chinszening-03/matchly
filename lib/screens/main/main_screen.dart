@@ -24,6 +24,7 @@ class _MainScreenState extends State<MainScreen> {
   Widget build(BuildContext context) {
 
     return Scaffold(
+      resizeToAvoidBottomInset: false,
 
       body: pages[currentIndex],
 
