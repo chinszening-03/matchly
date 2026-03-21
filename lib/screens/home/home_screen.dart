@@ -181,10 +181,9 @@ class _HomeScreenState extends State<HomeScreen> {
                 child: StreamBuilder<QuerySnapshot>(
                   stream: FirebaseFirestore.instance
                       .collection("activities")
-                      // Simply check if the user is in the participants array!
-                      // This handles both games they created AND games they joined.
                       .where("participants", arrayContains: currentUserId)
-                      .orderBy("createdAt", descending: true)
+                      .where("startTime", isGreaterThan: DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day))
+                      .orderBy("startTime", descending: false)
                       .snapshots(),
                   builder: (context, snapshot) {
                     
