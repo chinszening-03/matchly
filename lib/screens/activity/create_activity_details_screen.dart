@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
-import 'package:matchly/screens/home/home_screen.dart';
+import 'package:matchly/screens/main/main_screen.dart';
 import 'location_search_screen.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
@@ -606,7 +606,7 @@ AnimatedSwitcher(
 
                   Navigator.pushAndRemoveUntil(
                     context,
-                    MaterialPageRoute(builder: (_) => const HomeScreen()),
+                    MaterialPageRoute(builder: (_) => const MainScreen()),
                         (route) => false,
                   );
                 },

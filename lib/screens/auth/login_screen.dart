@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:matchly/screens/home/home_screen.dart';
+import 'package:matchly/screens/main/main_screen.dart';
 import '../../services/auth_service.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -31,7 +31,7 @@ class _LoginScreenState extends State<LoginScreen> {
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
-          builder: (_) => const HomeScreen(),
+          builder: (_) => const MainScreen(),
         ),
       );
     } else {

@@ -5,9 +5,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart'; // Uncommented
 import 'package:image_picker/image_picker.dart'; // Uncommented
 import 'dart:io'; // Uncommented
-import 'home/home_screen.dart';
 import '../screens/activity/location_search_screen.dart';
-
+import 'main/main_screen.dart';
 class OnboardingScreen extends StatefulWidget {
   const OnboardingScreen({super.key});
 
@@ -184,11 +183,11 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
     setState(() => isUploading = false); // Stop loading spinner
 
-    if (!mounted) return;
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(builder: (_) => const HomeScreen()),
-    );
+    Navigator.pushAndRemoveUntil(
+    context,
+    MaterialPageRoute(builder: (_) => const MainScreen()), // 👈 Push the parent/container screen
+    (route) => false, // This clears the onboarding stack so the user can't go "back" to onboarding
+  );
   }
 
   // ================= UI HELPERS =================

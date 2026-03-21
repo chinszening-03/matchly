@@ -4,6 +4,7 @@ import 'package:matchly/screens/activity/activity_list_screen.dart';
 import '../../services/auth_service.dart';
 import '../activity/choose_sports.dart';
 import '../activity/activitiy_details_screen.dart'; 
+import '../activity/activity_history_screen.dart';
 
 String formatDate(Timestamp? timestamp) {
   if (timestamp == null) return "";
@@ -159,7 +160,15 @@ class _HomeScreenState extends State<HomeScreen> {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
 
-                  statBox(Icons.favorite_border, "Joined Game"),
+                  GestureDetector(
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (context) => const ActivityHistoryScreen()),
+                      );
+                    },
+                    child: statBox(Icons.favorite_border, "Joined Game"),
+                  ),
                   statBox(Icons.timelapse, "Points"),
                   statBox(Icons.group, "My Club"),
 
