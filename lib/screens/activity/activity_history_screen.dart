@@ -122,9 +122,11 @@ class ActivityHistoryScreen extends StatelessWidget {
     final participants = List<String>.from(data["participants"] ?? []);
     
     final isCreator = currentUserId == createdBy;
+    final reservedSpots = List<String>.from(data["reservedSpots"] ?? []);
+    final totalJoined = participants.length + reservedSpots.length; 
 
     // Dynamically build the details string (Players + Type + Price)
-    String detailsText = "${participants.length}/$max players • $gameType";
+    String detailsText = "$totalJoined/$max players • $gameType";
     if (price > 0) {
       detailsText += " • RM $price";
     }

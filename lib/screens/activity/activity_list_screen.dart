@@ -581,9 +581,11 @@ class _ActivityListScreenState extends State<ActivityListScreen> {
     final isCreator = currentUserId == createdBy;
     final hasJoined = participants.contains(currentUserId);
     final isFull = participants.length >= max;
-
+    final reservedSpots = List<String>.from(data["reservedSpots"] ?? []);
+    final totalJoined = participants.length + reservedSpots.length; 
+    
     // Dynamically build the details string (Players + Type + Price)
-    String detailsText = "${participants.length}/$max players • $gameType";
+    String detailsText = "$totalJoined/$max players • $gameType";
     if (price > 0) {
       detailsText += " • RM $price";
     }

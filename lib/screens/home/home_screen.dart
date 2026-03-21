@@ -338,11 +338,14 @@ Widget activityCard(QueryDocumentSnapshot doc) {
     final start = data["startTime"] as Timestamp?;
     final end = data["endTime"] as Timestamp?;
 
+    
     // Grab participants to show accurate player count like the list screen
     final participants = List<String>.from(data["participants"] ?? []);
-
+    final reservedSpots = List<String>.from(data["reservedSpots"] ?? []);
+    final totalJoined = participants.length + reservedSpots.length; 
+    
     // Dynamically build the details string (Players + Type + Price)
-    String detailsText = "${participants.length}/$max players • $gameType";
+    String detailsText = "$totalJoined/$max players • $gameType";
     if (price > 0) {
       detailsText += " • RM $price";
     }
