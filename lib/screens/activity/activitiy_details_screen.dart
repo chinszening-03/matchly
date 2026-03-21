@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart'; // Add this import
 import '../../services/auth_service.dart';
+import 'activity_edit_screen.dart';
 
 class ActivityDetailsScreen extends StatefulWidget {
   final String activityId;
@@ -194,7 +195,50 @@ class _ActivityDetailsScreenState extends State<ActivityDetailsScreen> {
                 name,
                 style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 18),
               ),
-              
+
+              actions: [
+                if (isCreator)
+                  PopupMenuButton<String>(
+                    onSelected: (value) {
+                      if (value == 'edit') {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => ActivityEditScreen(
+          activityId: widget.activityId, // The ID passed to the details screen
+          sport: sport,                  // The sport name fetched from Firestore data
+        ),
+                          ),
+                        );
+                      } else if (value == 'delete') {
+                        return; // Uses your existing delete logic
+                      }
+                    },
+                    icon: const Icon(Icons.more_vert, color: Colors.black),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    itemBuilder: (BuildContext context) => [
+                      const PopupMenuItem<String>(
+                        value: 'edit',
+                        child: ListTile(
+                          leading: Icon(Icons.edit_outlined, color: Colors.black),
+                          title: Text('Edit Game'),
+                          contentPadding: EdgeInsets.zero,
+                          dense: true,
+                        ),
+                      ),
+                      const PopupMenuItem<String>(
+                        value: 'delete',
+                        child: ListTile(
+                          leading: Icon(Icons.delete_outline, color: Colors.red),
+                          title: Text('Delete Game', style: TextStyle(color: Colors.red)),
+                          contentPadding: EdgeInsets.zero,
+                          dense: true,
+                        ),
+                      ),
+                    ],
+                  ),
+              ],
+                          
               bottom: TabBar(
                 labelColor: primaryColor,
                 unselectedLabelColor: Colors.grey.shade500,
