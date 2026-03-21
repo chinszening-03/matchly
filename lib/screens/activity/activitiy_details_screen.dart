@@ -56,7 +56,7 @@ class _ActivityDetailsScreenState extends State<ActivityDetailsScreen> {
             if (isHost)
               Text("Host", style: TextStyle(fontSize: 10, color: primaryColor, fontWeight: FontWeight.bold)),
             if (isReserved && onTap != null) // Show 'remove' hint for host
-              const Text("Remove", style: TextStyle(fontSize: 10, color: Colors.red)),
+              const Text("(Reserved)", style: TextStyle(fontSize: 10)),
           ],
         ),
       ),
