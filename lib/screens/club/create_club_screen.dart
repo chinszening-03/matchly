@@ -32,18 +32,56 @@ class _CreateClubScreenState extends State<CreateClubScreen> {
   double radiusKm = 10.0;
 
   // --- Step 3: Sport & Level ---
-  String selectedSport = "Badminton"; // Default
-  final List<String> sports = ["Badminton", "Pickleball", "Tennis", "Futsal", "Basketball", "Football"];
-  String skillLevel = "Open to all";
-  final List<String> skillLevels = ["Open to all", "Beginner", "Intermediate", "Advanced"];
+  String selectedSport = "Badminton"; 
+  bool showAllSports = false;
+  
+  // Define sports to match your asset names
+  final List<Map<String, String>> hotSports = [
+    {"name": "Badminton", "img": "assets/badminton.png"},
+    {"name": "Pickleball", "img": "assets/pickleball.png"}, 
+    {"name": "Futsal", "img": "assets/futsal.png"},
+    {"name": "Basketball", "img": "assets/basketball.png"},
+  ];
+  final List<Map<String, String>> allSports = [
+    {"name": "Badminton", "img": "assets/badminton.png"},
+    {"name": "Pickleball", "img": "assets/pickleball.png"},
+    {"name": "Futsal", "img": "assets/futsal.png"}, 
+    {"name": "Basketball", "img": "assets/basketball.png"}, 
+    {"name": "Tennis", "img": "assets/tennis.png"},         
+    {"name": "Pilates", "img": "assets/pilates.png"},       
+    {"name": "Paintball", "img": "assets/paintball.png"},     
+    {"name": "Golf", "img": "assets/golf.png"},             
+    {"name": "Hiking", "img": "assets/hiking.png"},         
+    {"name": "Football", "img": "assets/football.png"},     
+    {"name": "Futsal", "img": "assets/futsal.png"},         
+    {"name": "Bowling", "img": "assets/bowling.png"},       
+    {"name": "Bouldering", "img": "assets/bouldering.png"},   
+    {"name": "Dodgeball", "img": "assets/dodgeball.png"},     
+    {"name": "Running", "img": "assets/running.png"},      
+    {"name": "Squash", "img": "assets/squash.png"},         
+    {"name": "Table Tennis", "img": "assets/tabletennis.png"},
+    {"name": "Frisbee", "img": "assets/frisbee.png"},      
+    {"name": "Volleyball", "img": "assets/volleyball.png"},   
+  ];
+
+  // Multi-select for skill levels
+  List<String> selectedSkills = ["Open to all"];
+  final List<String> skillLevels = ["Open to all", "Beginner", "Intermediate", "Advanced", "Competitive"];
 
   // --- Step 4-6: Privacy, Settings, Identity ---
-  String clubType = "Public"; // Public, Private
-  String joinApproval = "Auto approve"; // Auto approve, Admin approval
+  String clubType = "Public"; 
+  String joinApproval = "Auto approve"; 
   final TextEditingController maxMembersController = TextEditingController();
-  String eventCreation = "Only admin"; // Only admin, Everyone
-  String clubIdentity = "Casual Club"; // Competitive, Casual, Training, Social
-  final List<String> identities = ["Competitive Club", "Casual Club", "Training Club", "Social Club"];
+  String eventCreation = "Only admin"; 
+  String clubIdentity = "Casual Club"; 
+
+  // Replicating your image layout data
+  final List<Map<String, String>> identityCards = [
+    {"id": "Competitive Club", "img": "assets/competitive.png", "desc": "For serious competition and winning"},
+    {"id": "Casual Club", "img": "assets/casual.png", "desc": "For relaxed, friendly activities"},
+    {"id": "Training Club", "img": "assets/training.png", "desc": "For practicing and improving skills"},
+    {"id": "Social Club", "img": "assets/social.png", "desc": "For meeting new people and having fun"}
+  ];
 
   // --- Image Picker ---
   Future<void> _pickImage(ImageSource source) async {
@@ -77,7 +115,6 @@ class _CreateClubScreenState extends State<CreateClubScreen> {
     String? imageUrl;
 
     try {
-      // 1. Upload Image (If exists)
       if (clubImage != null) {
         Reference ref = FirebaseStorage.instance.ref().child('clubs').child('${DateTime.now().millisecondsSinceEpoch}.jpg');
         UploadTask uploadTask = ref.putFile(clubImage!);
@@ -85,7 +122,6 @@ class _CreateClubScreenState extends State<CreateClubScreen> {
         imageUrl = await snapshot.ref.getDownloadURL();
       }
 
-      // 2. Save to Firestore
       int? maxMem = int.tryParse(maxMembersController.text.trim());
 
       await FirebaseFirestore.instance.collection("clubs").add({
@@ -99,21 +135,21 @@ class _CreateClubScreenState extends State<CreateClubScreen> {
         "radiusKm": radiusKm,
         
         "sport": selectedSport,
-        "skillLevel": skillLevel,
+        "skillLevels": selectedSkills, // Saved as an array now
         
         "clubType": clubType,
         "joinApproval": joinApproval,
-        "maxMembers": maxMem, // Can be null if left blank
+        "maxMembers": maxMem, 
         "eventCreation": eventCreation,
         "clubIdentity": clubIdentity,
 
         "admin": uid,
-        "members": [uid], // Admin is the first member
+        "members": [uid], 
         "createdAt": FieldValue.serverTimestamp(),
       });
 
       if (!mounted) return;
-      Navigator.pop(context); // Go back to My Club screen
+      Navigator.pop(context); 
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Club created successfully!")));
 
     } catch (e) {
@@ -136,7 +172,6 @@ class _CreateClubScreenState extends State<CreateClubScreen> {
           children: [
             Column(
               children: [
-                // Progress Bar
                 LinearProgressIndicator(value: (currentStep + 1) / 4, backgroundColor: Colors.grey.shade200, color: primaryColor),
                 
                 Expanded(
@@ -146,7 +181,6 @@ class _CreateClubScreenState extends State<CreateClubScreen> {
                   ),
                 ),
 
-                // Bottom Buttons
                 Container(
                   padding: const EdgeInsets.all(20),
                   decoration: BoxDecoration(color: Colors.white, border: Border(top: BorderSide(color: Colors.grey.shade200))),
@@ -166,10 +200,17 @@ class _CreateClubScreenState extends State<CreateClubScreen> {
                         child: ElevatedButton(
                           style: ElevatedButton.styleFrom(backgroundColor: primaryColor, padding: const EdgeInsets.symmetric(vertical: 16), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)), elevation: 0),
                           onPressed: () {
-                            if (currentStep == 0 && nameController.text.isEmpty) {
+                            // Validation checks before proceeding
+                            if (currentStep == 0 && nameController.text.trim().isEmpty) {
                               ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Please enter a Club Name")));
                               return;
                             }
+                            // 👇 Enforce required location
+                            if (currentStep == 1 && locationName.isEmpty) {
+                              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Primary Location is required!")));
+                              return;
+                            }
+
                             if (currentStep < 3) {
                               setState(() => currentStep++);
                             } else {
@@ -185,7 +226,6 @@ class _CreateClubScreenState extends State<CreateClubScreen> {
               ],
             ),
 
-            // Loading Overlay
             if (isUploading)
               Container(
                 color: Colors.black45,
@@ -273,7 +313,7 @@ class _CreateClubScreenState extends State<CreateClubScreen> {
         const Text("Where does your club usually play?", style: TextStyle(color: Colors.grey)),
         const SizedBox(height: 30),
 
-        _buildLabel("Primary Location"),
+        _buildLabel("Primary Location *"), // Added asterisk
         TextField(
           readOnly: true,
           controller: TextEditingController(text: locationName),
@@ -301,32 +341,96 @@ class _CreateClubScreenState extends State<CreateClubScreen> {
   }
 
   Widget _buildStep3() {
+    final displaySports = showAllSports ? allSports : hotSports;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const Text("Sport & Level", style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
         const SizedBox(height: 30),
 
-        _buildLabel("Primary Sport"),
-        Wrap(
-          spacing: 10, runSpacing: 10,
-          children: sports.map((s) => ChoiceChip(
-            label: Text(s),
-            selected: selectedSport == s,
-            selectedColor: primaryColor.withOpacity(0.2),
-            onSelected: (val) { if(val) setState(() => selectedSport = s); },
-          )).toList(),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            _buildLabel("Primary Sport"),
+            GestureDetector(
+              onTap: () => setState(() => showAllSports = !showAllSports),
+              child: Text(showAllSports ? "Show Less" : "View All", style: TextStyle(color: primaryColor, fontWeight: FontWeight.bold, fontSize: 13)),
+            )
+          ],
         ),
-        const SizedBox(height: 30),
+        const SizedBox(height: 10),
 
+        // 👇 Image-based Sport Selection Grid
+        GridView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 4, 
+            crossAxisSpacing: 10, 
+            mainAxisSpacing: 10,
+            childAspectRatio: 0.8
+          ),
+          itemCount: displaySports.length,
+          itemBuilder: (context, index) {
+            final s = displaySports[index];
+            final isSelected = selectedSport == s["name"];
+            return GestureDetector(
+              onTap: () => setState(() => selectedSport = s["name"]!),
+              child: Container(
+                decoration: BoxDecoration(
+                  color: isSelected ? primaryColor.withOpacity(0.1) : Colors.transparent,
+                  border: Border.all(color: isSelected ? primaryColor : Colors.transparent, width: 2),
+                  borderRadius: BorderRadius.circular(12)
+                ),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    CircleAvatar(
+                      radius: 24,
+                      backgroundColor: Colors.grey.shade100,
+                      backgroundImage: AssetImage(s["img"]!),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(s["name"]!, style: TextStyle(fontSize: 10, fontWeight: isSelected ? FontWeight.bold : FontWeight.w600, color: isSelected ? primaryColor : Colors.black87), maxLines: 1, overflow: TextOverflow.ellipsis),
+                  ],
+                ),
+              ),
+            );
+          }
+        ),
+
+        const SizedBox(height: 30),
         _buildLabel("Skill Level Requirement"),
+        
+        // 👇 Multi-select Logic
         Wrap(
           spacing: 10, runSpacing: 10,
-          children: skillLevels.map((lvl) => ChoiceChip(
-            label: Text(lvl),
-            selected: skillLevel == lvl,
-            selectedColor: primaryColor.withOpacity(0.2),
-            onSelected: (val) { if(val) setState(() => skillLevel = lvl); },
+          children: skillLevels.map((lvl) => FilterChip(
+            label: Text(lvl, style: TextStyle(color: selectedSkills.contains(lvl) ? Colors.white : Colors.black87)),
+            selected: selectedSkills.contains(lvl),
+            selectedColor: primaryColor,
+            checkmarkColor: Colors.white,
+            backgroundColor: Colors.grey.shade100,
+            onSelected: (selected) {
+              setState(() {
+                if (lvl == "Open to all") {
+                  // If they select 'Open to all', clear everything else
+                  selectedSkills = ["Open to all"];
+                } else {
+                  // Remove 'Open to all' if a specific skill is tapped
+                  selectedSkills.remove("Open to all");
+                  
+                  if (selected) {
+                    selectedSkills.add(lvl);
+                  } else {
+                    selectedSkills.remove(lvl);
+                    // If they unselect everything, fallback to Open to all
+                    if (selectedSkills.isEmpty) selectedSkills.add("Open to all");
+                  }
+                }
+              });
+            },
           )).toList(),
         ),
       ],
@@ -340,18 +444,51 @@ class _CreateClubScreenState extends State<CreateClubScreen> {
         const Text("Rules & Settings", style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
         const SizedBox(height: 24),
 
-        _buildLabel("Club Identity"),
-        Wrap(
-          spacing: 8, runSpacing: 8,
-          children: identities.map((id) => ChoiceChip(
-            label: Text(id, style: TextStyle(fontSize: 12, color: clubIdentity == id ? Colors.white : Colors.black)),
-            selected: clubIdentity == id,
-            selectedColor: primaryColor,
-            onSelected: (val) { if(val) setState(() => clubIdentity = id); },
-          )).toList(),
-        ),
-        const SizedBox(height: 24),
+        const Center(child: Text("What's the primary focus of your club?", style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600))),
+        const SizedBox(height: 16),
 
+        // 👇 Image-based Identity Cards Grid
+        GridView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 2, 
+            crossAxisSpacing: 12, 
+            mainAxisSpacing: 12,
+            childAspectRatio: 0.85 // Adjusts card height
+          ),
+          itemCount: identityCards.length,
+          itemBuilder: (context, index) {
+            final card = identityCards[index];
+            final isSelected = clubIdentity == card["id"];
+            
+            return GestureDetector(
+              onTap: () => setState(() => clubIdentity = card["id"]!),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: isSelected ? primaryColor : Colors.grey.shade300, width: isSelected ? 2 : 1),
+                  boxShadow: isSelected ? [BoxShadow(color: primaryColor.withOpacity(0.2), blurRadius: 8, offset: const Offset(0, 4))] : [],
+                ),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Image.asset(card["img"]!, height: 60), // Uses your casual.png, competitive.png, etc.
+                    const SizedBox(height: 12),
+                    Text(card["id"]!, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14), textAlign: TextAlign.center),
+                    const SizedBox(height: 6),
+                    Text(card["desc"]!, style: TextStyle(fontSize: 11, color: Colors.grey.shade600, height: 1.3), textAlign: TextAlign.center),
+                  ],
+                ),
+              ),
+            );
+          }
+        ),
+
+        const SizedBox(height: 30),
         _buildLabel("Privacy"),
         Row(children: [
           Expanded(child: RadioListTile<String>(title: const Text("Public"), subtitle: const Text("Anyone can join", style: TextStyle(fontSize: 11)), value: "Public", groupValue: clubType, onChanged: (v) => setState(() => clubType = v!))),
