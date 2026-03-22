@@ -6,7 +6,6 @@ import 'package:flutter/cupertino.dart';
 import 'dart:io';
 
 import '../../services/auth_service.dart';
-// import 'activitiy_details_screen.dart'; // Uncomment if you need to navigate to an activity
 
 class ClubDetailsScreen extends StatefulWidget {
   final String clubId;
@@ -20,29 +19,43 @@ class ClubDetailsScreen extends StatefulWidget {
 class _ClubDetailsScreenState extends State<ClubDetailsScreen> {
   final Color primaryColor = const Color(0xFF0C3169);
   
-  // --- STATE VARIABLES ---
   String _selectedSection = 'Activities'; 
   final ImagePicker _picker = ImagePicker();
   bool _isUploadingCover = false;
-  bool _isUploadingProfile = false; // 👇 NEW STATE FOR PROFILE UPLOAD
+  bool _isUploadingProfile = false; 
 
-  // --- FIRESTORE ACTIONS ---
+  // ================= FIRESTORE ACTIONS =================
+
   Future<void> _joinClub(String joinApproval) async {
     final uid = AuthService().getCurrentUser()?.uid;
     if (uid == null) return;
 
     try {
       if (joinApproval == "Auto approve") {
+        // Join instantly
         await FirebaseFirestore.instance.collection("clubs").doc(widget.clubId).update({
           "members": FieldValue.arrayUnion([uid])
         });
         if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("You joined the club!")));
       } else {
+        // Send Request (Add to pending array)
+        await FirebaseFirestore.instance.collection("clubs").doc(widget.clubId).update({
+          "pendingMembers": FieldValue.arrayUnion([uid])
+        });
         if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Join request sent to Admin!")));
       }
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error: $e")));
     }
+  }
+
+  Future<void> _cancelRequest() async {
+    final uid = AuthService().getCurrentUser()?.uid;
+    if (uid == null) return;
+
+    await FirebaseFirestore.instance.collection("clubs").doc(widget.clubId).update({
+      "pendingMembers": FieldValue.arrayRemove([uid])
+    });
   }
 
   Future<void> _leaveClub() async {
@@ -69,7 +82,22 @@ class _ClubDetailsScreenState extends State<ClubDetailsScreen> {
     }
   }
 
-  // --- COVER PHOTO UPLOAD LOGIC ---
+  // --- ADMIN APPROVAL ACTIONS ---
+  Future<void> _approveMember(String targetUid) async {
+    await FirebaseFirestore.instance.collection("clubs").doc(widget.clubId).update({
+      "pendingMembers": FieldValue.arrayRemove([targetUid]),
+      "members": FieldValue.arrayUnion([targetUid]),
+    });
+  }
+
+  Future<void> _rejectMember(String targetUid) async {
+    await FirebaseFirestore.instance.collection("clubs").doc(widget.clubId).update({
+      "pendingMembers": FieldValue.arrayRemove([targetUid]),
+    });
+  }
+
+  // ================= IMAGE UPLOADS =================
+  
   Future<void> _pickAndUploadCoverPhoto() async {
     final ImageSource? source = await showCupertinoModalPopup<ImageSource>(
       context: context,
@@ -95,11 +123,7 @@ class _ClubDetailsScreenState extends State<ClubDetailsScreen> {
       await ref.putFile(File(pickedFile.path));
       final downloadUrl = await ref.getDownloadURL();
 
-      await FirebaseFirestore.instance.collection("clubs").doc(widget.clubId).update({
-        "coverPicUrl": downloadUrl
-      });
-      
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Cover photo updated!")));
+      await FirebaseFirestore.instance.collection("clubs").doc(widget.clubId).update({"coverPicUrl": downloadUrl});
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Upload error: $e")));
     } finally {
@@ -107,7 +131,6 @@ class _ClubDetailsScreenState extends State<ClubDetailsScreen> {
     }
   }
 
-  // --- 👇 NEW: PROFILE PHOTO UPLOAD LOGIC 👇 ---
   Future<void> _pickAndUploadProfilePhoto() async {
     final ImageSource? source = await showCupertinoModalPopup<ImageSource>(
       context: context,
@@ -129,16 +152,11 @@ class _ClubDetailsScreenState extends State<ClubDetailsScreen> {
     setState(() => _isUploadingProfile = true);
 
     try {
-      // Save it as 'profile.jpg' to keep it separate from the cover
       final ref = FirebaseStorage.instance.ref().child('clubs').child(widget.clubId).child('profile.jpg');
       await ref.putFile(File(pickedFile.path));
       final downloadUrl = await ref.getDownloadURL();
 
-      await FirebaseFirestore.instance.collection("clubs").doc(widget.clubId).update({
-        "profilePicUrl": downloadUrl
-      });
-      
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Profile picture updated!")));
+      await FirebaseFirestore.instance.collection("clubs").doc(widget.clubId).update({"profilePicUrl": downloadUrl});
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Upload error: $e")));
     } finally {
@@ -146,64 +164,7 @@ class _ClubDetailsScreenState extends State<ClubDetailsScreen> {
     }
   }
 
-  // --- FAB ACTIONS MODAL ---
-  void _showFabActions(BuildContext context) {
-    showModalBottomSheet(
-      context: context,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
-      builder: (context) {
-        return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Text("Create or Invite", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                const SizedBox(height: 30),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                  children: [
-                    _buildFabModalOption(Icons.add_circle, "Create\nActivity", () {
-                      Navigator.pop(context);
-                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Create Activity linking coming soon!")));
-                    }),
-                    _buildFabModalOption(Icons.campaign, "Post\nAnnouncement", () {
-                      Navigator.pop(context);
-                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Announcements coming soon!")));
-                    }),
-                    _buildFabModalOption(Icons.person_add, "Invite\nMembers", () {
-                      Navigator.pop(context);
-                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Invites coming soon!")));
-                    }),
-                  ],
-                ),
-                const SizedBox(height: 10),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildFabModalOption(IconData icon, String label, VoidCallback onTap) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Column(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(color: primaryColor.withOpacity(0.1), shape: BoxShape.circle),
-            child: Icon(icon, size: 30, color: primaryColor),
-          ),
-          const SizedBox(height: 12),
-          Text(label, textAlign: TextAlign.center, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, height: 1.2)),
-        ],
-      ),
-    );
-  }
-
-  // =========================================================================
+  // ================= MAIN BUILD =================
 
   @override
   Widget build(BuildContext context) {
@@ -216,43 +177,45 @@ class _ClubDetailsScreenState extends State<ClubDetailsScreen> {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Scaffold(body: Center(child: CircularProgressIndicator()));
         }
-        
         if (!snapshot.hasData || !snapshot.data!.exists) {
           return const Scaffold(body: Center(child: Text("Club not found.")));
         }
 
         final data = snapshot.data!.data() as Map<String, dynamic>;
+        
+        // --- Core Data ---
         final String adminId = data["admin"] ?? "";
         final List<String> members = List<String>.from(data["members"] ?? []);
+        final List<String> pendingMembers = List<String>.from(data["pendingMembers"] ?? []); // NEW
         final maxMembers = data["maxMembers"]; 
         
+        // --- Logic Checks ---
         final bool isMember = members.contains(currentUserId);
+        final bool isPending = pendingMembers.contains(currentUserId); // NEW
         final bool isAdmin = currentUserId == adminId;
         final bool isFull = maxMembers != null && members.length >= maxMembers;
 
         return Scaffold(
           backgroundColor: Colors.grey.shade50,
           
-          // Floating Action Button
           floatingActionButton: isMember 
               ? FloatingActionButton(
                   backgroundColor: primaryColor,
-                  onPressed: () => _showFabActions(context),
+                  onPressed: () {}, // FAB action logic here later
                   child: const Icon(Icons.add, color: Colors.white),
                 )
               : null,
           
           body: Column(
             children: [
-              // --- OVERLAPPING COVER & PROFILE PHOTO STACK ---
+              // --- STACK: COVER & PROFILE ---
               Stack(
                 clipBehavior: Clip.none,
                 alignment: Alignment.bottomCenter,
                 children: [
-                  // Total height container (Cover 180 + half of profile 45 = 225)
                   Container(height: 225, width: double.infinity),
                   
-                  // 1. COVER PHOTO
+                  // Cover
                   Positioned(
                     top: 0, left: 0, right: 0, height: 180,
                     child: Container(
@@ -263,82 +226,40 @@ class _ClubDetailsScreenState extends State<ClubDetailsScreen> {
                     ),
                   ),
                   
-                  // Back Button 
-                  Positioned(
-                    top: MediaQuery.of(context).padding.top + 10,
-                    left: 10,
-                    child: const BackButton(color: Colors.white),
-                  ),
+                  Positioned(top: MediaQuery.of(context).padding.top + 10, left: 10, child: const BackButton(color: Colors.white)),
 
-                  // Edit Cover Button (Admin only)
                   if (isAdmin)
                     Positioned(
                       top: 130, right: 12, 
                       child: GestureDetector(
                         onTap: _pickAndUploadCoverPhoto,
-                        child: Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: const BoxDecoration(color: Colors.black54, shape: BoxShape.circle),
-                          child: const Icon(Icons.camera_alt, color: Colors.white, size: 20),
-                        ),
+                        child: Container(padding: const EdgeInsets.all(8), decoration: const BoxDecoration(color: Colors.black54, shape: BoxShape.circle), child: const Icon(Icons.camera_alt, color: Colors.white, size: 20)),
                       ),
                     ),
 
-                  // Uploading Indicator for Cover
                   if (_isUploadingCover)
-                    Positioned(
-                      top: 0, left: 0, right: 0, height: 180,
-                      child: Container(
-                        color: Colors.black45,
-                        child: const Center(child: CircularProgressIndicator(color: Colors.white)),
-                      ),
-                    ),
+                    Positioned(top: 0, left: 0, right: 0, height: 180, child: Container(color: Colors.black45, child: const Center(child: CircularProgressIndicator(color: Colors.white)))),
 
-                  // 2. PROFILE PICTURE (Now Tappable with Camera Badge)
+                  // Profile
                   Positioned(
                     bottom: 0, 
                     child: GestureDetector(
-                      // 👇 Clicking it triggers the profile upload (Admin only)
                       onTap: isAdmin ? _pickAndUploadProfilePhoto : null,
                       child: Stack(
                         children: [
                           Container(
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              border: Border.all(color: primaryColor, width: 2), 
-                              boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 8)],
-                            ),
+                            decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: Colors.white, width: 4), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 8)]),
                             child: CircleAvatar(
-                              radius: 45,
-                              backgroundColor: Colors.white,
+                              radius: 45, backgroundColor: Colors.white,
                               child: CircleAvatar(
-                                radius: 43, 
-                                backgroundColor: primaryColor.withOpacity(0.1),
-                                backgroundImage: data["profilePicUrl"] != null && data["profilePicUrl"].toString().isNotEmpty 
-                                    ? NetworkImage(data["profilePicUrl"]) 
-                                    : null,
-                                child: _isUploadingProfile 
-                                    ? CircularProgressIndicator(color: primaryColor) 
-                                    : (data["profilePicUrl"] == null || data["profilePicUrl"].toString().isEmpty 
-                                        ? Icon(Icons.shield, size: 40, color: primaryColor) 
-                                        : null),
+                                radius: 43, backgroundColor: primaryColor.withOpacity(0.1),
+                                backgroundImage: data["profilePicUrl"] != null && data["profilePicUrl"].toString().isNotEmpty ? NetworkImage(data["profilePicUrl"]) : null,
+                                child: _isUploadingProfile ? CircularProgressIndicator(color: primaryColor) : (data["profilePicUrl"] == null || data["profilePicUrl"].toString().isEmpty ? Icon(Icons.shield, size: 40, color: primaryColor) : null),
                               ),
                             ),
                           ),
-                          // 👇 Camera Badge (Admin only)
                           if (isAdmin)
-                            Positioned(
-                              bottom: 0, right: 0,
-                              child: Container(
-                                padding: const EdgeInsets.all(6),
-                                decoration: BoxDecoration(
-                                  color: Colors.black54, 
-                                  shape: BoxShape.circle,
-                                  border: Border.all(color: Colors.white, width: 2)
-                                ),
-                                child: const Icon(Icons.camera_alt, color: Colors.white, size: 14),
-                              ),
-                            ),
+                            Positioned(bottom: 0, right: 0, child: Container(padding: const EdgeInsets.all(6), decoration: BoxDecoration(color: Colors.black54, shape: BoxShape.circle, border: Border.all(color: Colors.white, width: 2)), child: const Icon(Icons.camera_alt, color: Colors.white, size: 14))),
                         ],
                       ),
                     ),
@@ -347,13 +268,14 @@ class _ClubDetailsScreenState extends State<ClubDetailsScreen> {
               ),
               
               // --- CLUB SUMMARY ---
-              _buildClubSummarySection(data, isMember, isAdmin, members, isFull),
+              // Passed isPending down to the summary section
+              _buildClubSummarySection(data, isMember, isPending, isAdmin, members, isFull),
 
               // --- LOGO NAVIGATION ---
               _buildLogoNavigation(),
 
               // --- CONTENT SWITCH ---
-              Expanded(child: _buildSelectedContent(members, adminId)),
+              Expanded(child: _buildSelectedContent(members, pendingMembers, adminId, isAdmin)),
             ],
           ),
         );
@@ -362,63 +284,90 @@ class _ClubDetailsScreenState extends State<ClubDetailsScreen> {
   }
 
   // ================= CONTENT SWITCHER =================
-  Widget _buildSelectedContent(List<String> members, String adminId) {
+  Widget _buildSelectedContent(List<String> members, List<String> pendingMembers, String adminId, bool isAdmin) {
     switch (_selectedSection) {
-      case 'Activities': return _buildActivitiesTab();
-      case 'Members': return _buildMembersTab(members, adminId); 
-      case 'Gallery': return _buildPlaceholderTab("Gallery coming soon!"); 
-      case 'Chat': return _buildPlaceholderTab("Club Chat coming soon!"); 
+      case 'Activities': return const Center(child: Text("No club activities yet."));
+      case 'Members': return _buildMembersTab(members, pendingMembers, adminId, isAdmin); 
+      case 'Gallery': return const Center(child: Text("Gallery coming soon!")); 
+      case 'Chat': return const Center(child: Text("Club Chat coming soon!")); 
       default: return const SizedBox.shrink();
     }
   }
 
-  Widget _buildPlaceholderTab(String text) {
-     return Center(child: Padding(padding: const EdgeInsets.all(32), child: Text(text, textAlign: TextAlign.center, style: TextStyle(color: Colors.grey.shade600))));
-  }
+  // ================= MEMBERS TAB (UPDATED WITH PENDING LOGIC) =================
+  Widget _buildMembersTab(List<String> members, List<String> pendingMembers, String adminId, bool isAdmin) {
+    // Combine both lists so we only have to make ONE Firebase call to get all profiles
+    final allUids = [...pendingMembers, ...members];
 
-  Widget _buildMembersTab(List<String> members, String adminId) {
     return FutureBuilder<List<DocumentSnapshot>>(
-      future: Future.wait(members.map((uid) => FirebaseFirestore.instance.collection("users").doc(uid).get())),
+      future: Future.wait(allUids.map((uid) => FirebaseFirestore.instance.collection("users").doc(uid).get())),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
         if (!snapshot.hasData || snapshot.data!.isEmpty) return const Center(child: Text("No members found."));
         
-        return ListView.builder(
-          padding: const EdgeInsets.all(16), 
-          itemCount: snapshot.data!.length, 
-          itemBuilder: (context, index) {
-            var userDoc = snapshot.data![index].data() as Map<String, dynamic>?;
-            String name = userDoc?["name"] ?? "Player";
-            String picUrl = userDoc?["profilePicUrl"] ?? "";
-            String uid = snapshot.data![index].id;
-            bool isHost = uid == adminId;
-            
-            return ListTile(
-              leading: CircleAvatar(
-                backgroundColor: primaryColor.withOpacity(0.1), 
-                backgroundImage: picUrl.isNotEmpty ? NetworkImage(picUrl) : null, 
-                child: picUrl.isEmpty ? Icon(Icons.person, color: primaryColor) : null
-              ), 
-              title: Text(name, style: const TextStyle(fontWeight: FontWeight.bold)), 
-              trailing: isHost 
-                ? Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), decoration: BoxDecoration(color: primaryColor, borderRadius: BorderRadius.circular(12)), child: const Text("Admin", style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold))) 
-                : null
-            );
-        });
-      });
-  }
+        // Separate the loaded profiles back into Pending and Active groups
+        final pendingDocs = snapshot.data!.where((doc) => pendingMembers.contains(doc.id)).toList();
+        final memberDocs = snapshot.data!.where((doc) => members.contains(doc.id)).toList();
 
-  Widget _buildActivitiesTab() {
-     return Center(
-       child: Column(
-         mainAxisAlignment: MainAxisAlignment.center,
-         children: [
-           Icon(Icons.event_busy, size: 48, color: Colors.grey.shade300),
-           const SizedBox(height: 16),
-           Text("No club activities yet.", style: TextStyle(color: Colors.grey.shade600)),
-         ],
-       ),
-     );
+        return ListView(
+          padding: const EdgeInsets.all(16), 
+          children: [
+            // --- PENDING REQUESTS SECTION (ADMIN ONLY) ---
+            if (isAdmin && pendingDocs.isNotEmpty) ...[
+              const Text("Pending Requests", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.grey, fontSize: 12)),
+              const SizedBox(height: 8),
+              ...pendingDocs.map((userDoc) {
+                var data = userDoc.data() as Map<String, dynamic>?;
+                return ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: CircleAvatar(
+                    backgroundColor: primaryColor.withOpacity(0.1),
+                    backgroundImage: data?["profilePicUrl"]?.isNotEmpty == true ? NetworkImage(data!["profilePicUrl"]) : null,
+                    child: data?["profilePicUrl"]?.isEmpty == true ? Icon(Icons.person, color: primaryColor) : null,
+                  ),
+                  title: Text(data?["name"] ?? "Player", style: const TextStyle(fontWeight: FontWeight.bold)),
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.close, color: Colors.red),
+                        onPressed: () => _rejectMember(userDoc.id), // Reject
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.check_circle, color: Colors.green),
+                        onPressed: () => _approveMember(userDoc.id), // Approve
+                      ),
+                    ],
+                  ),
+                );
+              }),
+              const Divider(height: 32),
+            ],
+
+            // --- ACTIVE MEMBERS SECTION ---
+            Text("Active Members (${memberDocs.length})", style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.grey, fontSize: 12)),
+            const SizedBox(height: 8),
+            ...memberDocs.map((userDoc) {
+              var data = userDoc.data() as Map<String, dynamic>?;
+              bool isHost = userDoc.id == adminId;
+
+              return ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: CircleAvatar(
+                  backgroundColor: primaryColor.withOpacity(0.1), 
+                  backgroundImage: data?["profilePicUrl"]?.isNotEmpty == true ? NetworkImage(data!["profilePicUrl"]) : null, 
+                  child: data?["profilePicUrl"]?.isEmpty == true ? Icon(Icons.person, color: primaryColor) : null
+                ), 
+                title: Text(data?["name"] ?? "Player", style: const TextStyle(fontWeight: FontWeight.bold)), 
+                trailing: isHost 
+                  ? Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), decoration: BoxDecoration(color: primaryColor, borderRadius: BorderRadius.circular(12)), child: const Text("Admin", style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold))) 
+                  : null
+              );
+            }),
+          ],
+        );
+      }
+    );
   }
 
   // ================= UI HELPERS =================
@@ -461,7 +410,7 @@ class _ClubDetailsScreenState extends State<ClubDetailsScreen> {
     );
   }
 
-  Widget _buildClubSummarySection(Map<String, dynamic> data, bool isMember, bool isAdmin, List<String> members, bool isFull) {
+  Widget _buildClubSummarySection(Map<String, dynamic> data, bool isMember, bool isPending, bool isAdmin, List<String> members, bool isFull) {
      final name = data["name"] ?? "Club Name";
      final description = data["description"] ?? "No description.";
      final location = data["location"] ?? "Unknown Location";
@@ -489,8 +438,10 @@ class _ClubDetailsScreenState extends State<ClubDetailsScreen> {
           Text(description, textAlign: TextAlign.center, style: TextStyle(color: Colors.black87, fontSize: 14, height: 1.4)),
           const SizedBox(height: 24),
           
-          // Action Buttons
-          if (!isMember) 
+          // --- DYNAMIC ACTION BUTTONS ---
+          
+          // 1. Not a member and hasn't requested yet
+          if (!isMember && !isPending) 
             SizedBox(
               width: double.infinity, height: 45, 
               child: ElevatedButton(
@@ -499,7 +450,19 @@ class _ClubDetailsScreenState extends State<ClubDetailsScreen> {
                 child: Text(isFull ? "Club is Full" : (joinApproval == "Auto approve" ? "Join Club" : "Request to Join"), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15))
               )
             ),
+
+          // 2. Not a member, but request is pending
+          if (!isMember && isPending)
+            SizedBox(
+              width: double.infinity, height: 45, 
+              child: OutlinedButton(
+                onPressed: _cancelRequest, 
+                style: OutlinedButton.styleFrom(foregroundColor: Colors.grey.shade700, side: BorderSide(color: Colors.grey.shade300), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))), 
+                child: const Text("Cancel Request", style: TextStyle(fontWeight: FontWeight.bold))
+              )
+            ),
           
+          // 3. Is a regular member
           if (isMember && !isAdmin) 
             SizedBox(
               width: double.infinity, height: 45, 
@@ -510,6 +473,7 @@ class _ClubDetailsScreenState extends State<ClubDetailsScreen> {
               )
             ),
           
+          // 4. Is the Admin
           if (isAdmin) 
             SizedBox(
               width: double.infinity, height: 45, 
