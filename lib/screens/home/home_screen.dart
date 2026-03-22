@@ -6,6 +6,7 @@ import '../activity/choose_sports.dart';
 import '../activity/activitiy_details_screen.dart'; 
 import '../activity/activity_history_screen.dart';
 import '../activity/location_search_screen.dart';
+import '../club/my_club_screen.dart';
 
 String formatDate(Timestamp? timestamp) {
   if (timestamp == null) return "";
@@ -337,7 +338,13 @@ class _HomeScreenState extends State<HomeScreen> {
                     child: statBox(Icons.favorite_border, "Joined Game: $joinedGamesCount"),
                   ),
                   statBox(Icons.timelapse, "Points"),
-                  statBox(Icons.group, "My Club"),
+                  GestureDetector(
+                    onTap: () => {
+                      Navigator.push(context, MaterialPageRoute(builder: (context) => const MyClubScreen()))
+                    },
+                    child: statBox(Icons.group, "My Club"),
+                  )
+                  
 
                 ],
               ),
