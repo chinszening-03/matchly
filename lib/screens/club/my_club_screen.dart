@@ -219,6 +219,11 @@ class _MyClubScreenState extends State<MyClubScreen> {
     String sport = clubData["sport"] ?? "Sport";
     int memberCount = (clubData["members"] as List?)?.length ?? 1;
     String profilePicUrl = clubData["profilePicUrl"] ?? "";
+    String location = clubData["location"] ?? "Unknown Location";
+    String clubIdentity = clubData["clubIdentity"] ?? "Casual";
+    List<dynamic> skillList = clubData["skillLevels"] ?? ["Open to all"];    
+    String skillsString = skillList.join(", ");
+    String sportAsset = "assets/${sport.toLowerCase()} icon.png";
 
     return Card(
       elevation: 0,
@@ -233,7 +238,63 @@ class _MyClubScreenState extends State<MyClubScreen> {
           child: profilePicUrl.isEmpty ? Icon(Icons.shield, color: primaryColor) : null,
         ),
         title: Text(name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-        subtitle: Text("$memberCount members • $sport", style: TextStyle(color: Colors.grey.shade600, fontSize: 12)),
+        
+        subtitle: Padding(
+          padding: const EdgeInsets.only(top: 6.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // --- 👇 NEW: RichText for perfectly aligned inline icons and text ---
+              RichText(
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                text: TextSpan(
+                  style: TextStyle(color: Colors.grey.shade700, fontSize: 12, fontWeight: FontWeight.w500, height: 1.4),
+                  children: [
+                    // 👥 Team Icon
+                    WidgetSpan(
+                      alignment: PlaceholderAlignment.middle,
+                      child: Padding(
+                        padding: const EdgeInsets.only(right: 4, bottom: 2),
+                        child: Icon(Icons.groups, size: 16, color: Colors.grey.shade700),
+                      ),
+                    ),
+                    TextSpan(text: "$memberCount members  •  "),
+                    
+                    // 🏸 Sport Icon
+                    WidgetSpan(
+                      alignment: PlaceholderAlignment.middle,
+                      child: Padding(
+                        padding: const EdgeInsets.only(right: 2, bottom: 0),
+                        child: Image.asset(sportAsset, width: 30, height: 30),
+                      ),
+                    ),
+                    TextSpan(text: "$skillsString  •  $clubIdentity"),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 6),
+              
+              // --- Location Row ---
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(Icons.location_on_outlined, size: 14, color: Colors.grey.shade500),
+                  const SizedBox(width: 4),
+                  Expanded(
+                    child: Text(
+                      location, 
+                      style: TextStyle(color: Colors.grey.shade500, fontSize: 11),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+        
         trailing: const Icon(Icons.chevron_right),
         onTap: () {
           Navigator.push(
