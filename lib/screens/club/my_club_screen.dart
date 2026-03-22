@@ -2,12 +2,20 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../services/auth_service.dart';
 import 'create_club_screen.dart';
-import 'club_details_screen.dart'; 
+import 'club_details_screen.dart';
 
-class MyClubScreen extends StatelessWidget {
+class MyClubScreen extends StatefulWidget {
   const MyClubScreen({super.key});
 
+  @override
+  State<MyClubScreen> createState() => _MyClubScreenState();
+}
+
+class _MyClubScreenState extends State<MyClubScreen> {
   final Color primaryColor = const Color(0xFF0C3169);
+  
+  // 👇 STATE VARIABLE FOR SEARCH 👇
+  String searchQuery = "";
 
   @override
   Widget build(BuildContext context) {
@@ -17,14 +25,12 @@ class MyClubScreen extends StatelessWidget {
       return const Scaffold(body: Center(child: Text("Please log in.")));
     }
 
-    // Using DefaultTabController to manage the two tabs
     return DefaultTabController(
       length: 2,
       child: Scaffold(
         backgroundColor: Colors.grey.shade50,
         
         // --- FLOATING ACTION BUTTON ---
-        // Always visible so users can easily create a club from either tab
         floatingActionButton: FloatingActionButton(
           backgroundColor: primaryColor,
           onPressed: () {
@@ -66,7 +72,6 @@ class MyClubScreen extends StatelessWidget {
   // ================= TAB 1: MY CLUBS =================
   Widget _buildMyClubsTab(String currentUserId) {
     return StreamBuilder<QuerySnapshot>(
-      // Query: Find clubs where this user is explicitly in the 'members' array
       stream: FirebaseFirestore.instance
           .collection("clubs")
           .where("members", arrayContains: currentUserId)
@@ -76,7 +81,6 @@ class MyClubScreen extends StatelessWidget {
           return Center(child: CircularProgressIndicator(color: primaryColor));
         }
 
-        // Empty State
         if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
           return Center(
             child: Padding(
@@ -103,9 +107,8 @@ class MyClubScreen extends StatelessWidget {
           );
         }
 
-        // Filled State
         return ListView.builder(
-          padding: const EdgeInsets.only(top: 16, left: 16, right: 16, bottom: 80), // Bottom padding for FAB
+          padding: const EdgeInsets.only(top: 16, left: 16, right: 16, bottom: 80), 
           itemCount: snapshot.data!.docs.length,
           itemBuilder: (context, index) {
             var doc = snapshot.data!.docs[index];
@@ -116,53 +119,95 @@ class MyClubScreen extends StatelessWidget {
     );
   }
 
-  // ================= TAB 2: DISCOVER =================
+  // ================= TAB 2: DISCOVER (WITH SEARCH) =================
   Widget _buildDiscoverTab(String currentUserId) {
-    return StreamBuilder<QuerySnapshot>(
-      // We grab public clubs, then locally filter out ones the user is already in
-      stream: FirebaseFirestore.instance
-          .collection("clubs")
-          .where("clubType", isEqualTo: "Public") // Only discover public clubs
-          .snapshots(),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return Center(child: CircularProgressIndicator(color: primaryColor));
-        }
-
-        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-          return const Center(child: Text("No public clubs found to discover."));
-        }
-
-        // LOCAL FILTERING: Remove clubs where the user is already a member
-        final discoverClubs = snapshot.data!.docs.where((doc) {
-          final data = doc.data() as Map<String, dynamic>;
-          final members = List<String>.from(data["members"] ?? []);
-          return !members.contains(currentUserId);
-        }).toList();
-
-        // Empty State (If they are already in every single public club)
-        if (discoverClubs.isEmpty) {
-          return Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(Icons.check_circle_outline, size: 60, color: Colors.grey.shade400),
-                const SizedBox(height: 16),
-                Text("You've joined all available public clubs!", style: TextStyle(color: Colors.grey.shade600)),
-              ],
+    return Column(
+      children: [
+        // --- 👇 NEW SEARCH BAR 👇 ---
+        Container(
+          color: Colors.white,
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+          child: TextField(
+            onChanged: (value) {
+              // Update state when user types to instantly filter the list below
+              setState(() {
+                searchQuery = value.toLowerCase();
+              });
+            },
+            decoration: InputDecoration(
+              hintText: "Search clubs by name...",
+              hintStyle: TextStyle(color: Colors.grey.shade400),
+              prefixIcon: Icon(Icons.search, color: primaryColor),
+              filled: true,
+              fillColor: Colors.grey.shade100,
+              contentPadding: const EdgeInsets.symmetric(vertical: 0),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide.none,
+              ),
             ),
-          );
-        }
+          ),
+        ),
+        
+        // --- THE LIST ---
+        Expanded(
+          child: StreamBuilder<QuerySnapshot>(
+            stream: FirebaseFirestore.instance
+                .collection("clubs")
+                .where("clubType", isEqualTo: "Public")
+                .snapshots(),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return Center(child: CircularProgressIndicator(color: primaryColor));
+              }
 
-        // Filled State
-        return ListView.builder(
-          padding: const EdgeInsets.only(top: 16, left: 16, right: 16, bottom: 80),
-          itemCount: discoverClubs.length,
-          itemBuilder: (context, index) {
-            return _buildClubCard(context, discoverClubs[index]);
-          },
-        );
-      },
+              if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                return const Center(child: Text("No public clubs found to discover."));
+              }
+
+              // 👇 LOCAL FILTERING LOGIC 👇
+              final discoverClubs = snapshot.data!.docs.where((doc) {
+                final data = doc.data() as Map<String, dynamic>;
+                final members = List<String>.from(data["members"] ?? []);
+                final clubName = (data["name"] ?? "").toString().toLowerCase();
+
+                // 1. Is the user NOT a member?
+                final isNotMember = !members.contains(currentUserId);
+                
+                // 2. Does the club name match the search query?
+                final matchesSearch = searchQuery.isEmpty || clubName.contains(searchQuery);
+
+                // Return true only if both conditions are met
+                return isNotMember && matchesSearch;
+              }).toList();
+
+              if (discoverClubs.isEmpty) {
+                return Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(searchQuery.isNotEmpty ? Icons.search_off : Icons.check_circle_outline, size: 60, color: Colors.grey.shade300),
+                      const SizedBox(height: 16),
+                      Text(
+                        searchQuery.isNotEmpty ? "No clubs found matching '$searchQuery'" : "You've joined all available public clubs!", 
+                        style: TextStyle(color: Colors.grey.shade600)
+                      ),
+                    ],
+                  ),
+                );
+              }
+
+              return ListView.builder(
+                padding: const EdgeInsets.only(top: 8, left: 16, right: 16, bottom: 80),
+                itemCount: discoverClubs.length,
+                itemBuilder: (context, index) {
+                  return _buildClubCard(context, discoverClubs[index]);
+                },
+              );
+            },
+          ),
+        ),
+      ],
     );
   }
 
@@ -191,7 +236,6 @@ class MyClubScreen extends StatelessWidget {
         subtitle: Text("$memberCount members • $sport", style: TextStyle(color: Colors.grey.shade600, fontSize: 12)),
         trailing: const Icon(Icons.chevron_right),
         onTap: () {
-          // Navigate to Club Details Screen
           Navigator.push(
             context,
             MaterialPageRoute(
