@@ -24,6 +24,7 @@ class _ClubDetailsScreenState extends State<ClubDetailsScreen> {
   String _selectedSection = 'Activities'; 
   final ImagePicker _picker = ImagePicker();
   bool _isUploadingCover = false;
+  bool _isUploadingProfile = false; // 👇 NEW STATE FOR PROFILE UPLOAD
 
   // --- FIRESTORE ACTIONS ---
   Future<void> _joinClub(String joinApproval) async {
@@ -103,6 +104,45 @@ class _ClubDetailsScreenState extends State<ClubDetailsScreen> {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Upload error: $e")));
     } finally {
       if (mounted) setState(() => _isUploadingCover = false);
+    }
+  }
+
+  // --- 👇 NEW: PROFILE PHOTO UPLOAD LOGIC 👇 ---
+  Future<void> _pickAndUploadProfilePhoto() async {
+    final ImageSource? source = await showCupertinoModalPopup<ImageSource>(
+      context: context,
+      builder: (context) => CupertinoActionSheet(
+        title: const Text("Edit Profile Picture"),
+        actions: [
+          CupertinoActionSheetAction(onPressed: () => Navigator.pop(context, ImageSource.camera), child: const Text("Camera")),
+          CupertinoActionSheetAction(onPressed: () => Navigator.pop(context, ImageSource.gallery), child: const Text("Photo Gallery")),
+        ],
+        cancelButton: CupertinoActionSheetAction(isDestructiveAction: true, onPressed: () => Navigator.pop(context), child: const Text("Cancel")),
+      ),
+    );
+
+    if (source == null) return;
+
+    final XFile? pickedFile = await _picker.pickImage(source: source, maxWidth: 512, maxHeight: 512, imageQuality: 70);
+    if (pickedFile == null) return;
+
+    setState(() => _isUploadingProfile = true);
+
+    try {
+      // Save it as 'profile.jpg' to keep it separate from the cover
+      final ref = FirebaseStorage.instance.ref().child('clubs').child(widget.clubId).child('profile.jpg');
+      await ref.putFile(File(pickedFile.path));
+      final downloadUrl = await ref.getDownloadURL();
+
+      await FirebaseFirestore.instance.collection("clubs").doc(widget.clubId).update({
+        "profilePicUrl": downloadUrl
+      });
+      
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Profile picture updated!")));
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Upload error: $e")));
+    } finally {
+      if (mounted) setState(() => _isUploadingProfile = false);
     }
   }
 
@@ -191,7 +231,7 @@ class _ClubDetailsScreenState extends State<ClubDetailsScreen> {
         final bool isFull = maxMembers != null && members.length >= maxMembers;
 
         return Scaffold(
-          backgroundColor: Colors.white,
+          backgroundColor: Colors.grey.shade50,
           
           // Floating Action Button
           floatingActionButton: isMember 
@@ -254,27 +294,52 @@ class _ClubDetailsScreenState extends State<ClubDetailsScreen> {
                       ),
                     ),
 
-                  // 2. PROFILE PICTURE
+                  // 2. PROFILE PICTURE (Now Tappable with Camera Badge)
                   Positioned(
                     bottom: 0, 
-                    child: Container(
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        border: Border.all(color: Colors.white, width: 4), 
-                      ),
-                      child: CircleAvatar(
-                        radius: 45,
-                        backgroundColor: Colors.white,
-                        child: CircleAvatar(
-                          radius: 45, 
-                          backgroundColor: primaryColor.withOpacity(0.1),
-                          backgroundImage: data["profilePicUrl"] != null && data["profilePicUrl"].toString().isNotEmpty 
-                              ? NetworkImage(data["profilePicUrl"]) 
-                              : null,
-                          child: data["profilePicUrl"] == null || data["profilePicUrl"].toString().isEmpty 
-                              ? Icon(Icons.shield, size: 40, color: primaryColor) 
-                              : null,
-                        ),
+                    child: GestureDetector(
+                      // 👇 Clicking it triggers the profile upload (Admin only)
+                      onTap: isAdmin ? _pickAndUploadProfilePhoto : null,
+                      child: Stack(
+                        children: [
+                          Container(
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              border: Border.all(color: primaryColor, width: 2), 
+                              boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 8)],
+                            ),
+                            child: CircleAvatar(
+                              radius: 45,
+                              backgroundColor: Colors.white,
+                              child: CircleAvatar(
+                                radius: 43, 
+                                backgroundColor: primaryColor.withOpacity(0.1),
+                                backgroundImage: data["profilePicUrl"] != null && data["profilePicUrl"].toString().isNotEmpty 
+                                    ? NetworkImage(data["profilePicUrl"]) 
+                                    : null,
+                                child: _isUploadingProfile 
+                                    ? CircularProgressIndicator(color: primaryColor) 
+                                    : (data["profilePicUrl"] == null || data["profilePicUrl"].toString().isEmpty 
+                                        ? Icon(Icons.shield, size: 40, color: primaryColor) 
+                                        : null),
+                              ),
+                            ),
+                          ),
+                          // 👇 Camera Badge (Admin only)
+                          if (isAdmin)
+                            Positioned(
+                              bottom: 0, right: 0,
+                              child: Container(
+                                padding: const EdgeInsets.all(6),
+                                decoration: BoxDecoration(
+                                  color: Colors.black54, 
+                                  shape: BoxShape.circle,
+                                  border: Border.all(color: Colors.white, width: 2)
+                                ),
+                                child: const Icon(Icons.camera_alt, color: Colors.white, size: 14),
+                              ),
+                            ),
+                        ],
                       ),
                     ),
                   ),
