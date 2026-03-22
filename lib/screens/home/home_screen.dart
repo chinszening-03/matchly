@@ -5,6 +5,7 @@ import '../../services/auth_service.dart';
 import '../activity/choose_sports.dart';
 import '../activity/activitiy_details_screen.dart'; 
 import '../activity/activity_history_screen.dart';
+import '../activity/location_search_screen.dart';
 
 String formatDate(Timestamp? timestamp) {
   if (timestamp == null) return "";
@@ -75,6 +76,11 @@ class _HomeScreenState extends State<HomeScreen> {
 
   String name = "";
   int joinedGamesCount = 0;
+  String locationName = "Fetching location...";
+  double radiusKm = 10.0;
+  double? userLat;
+  double? userLng;
+  final Color primaryColor = const Color(0xFF0C3169);
 
   @override
   void initState() {
@@ -103,30 +109,180 @@ class _HomeScreenState extends State<HomeScreen> {
     setState(() {
       name = userDoc.data()?["name"] ?? "Player";
       joinedGamesCount = countSnapshot.count ?? 0; // Update the count
+
+      locationName = userDoc.data()?["location"] ?? "Set your location";
+      radiusKm = (userDoc.data()?["radiusKm"] ?? 10.0).toDouble();
+      userLat = userDoc.data()?["lat"];
+      userLng = userDoc.data()?["lng"];
     });
   }
 
+  void _showLocationBottomSheet(BuildContext context) {
+    // Temporary variables to hold state while the bottom sheet is open
+    String tempLocName = locationName;
+    double tempRadius = radiusKm;
+    double? tempLat = userLat;
+    double? tempLng = userLng;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true, 
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return Padding(
+              padding: EdgeInsets.only(
+                bottom: MediaQuery.of(context).viewInsets.bottom + 20,
+                top: 24, left: 20, right: 20
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text("Location & Radius", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 24),
+                  
+                  // --- Location Picker Field ---
+                  const Text("Area / City", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                  const SizedBox(height: 8),
+                  TextField(
+                    readOnly: true, // Prevents typing, acts like a button
+                    controller: TextEditingController(text: tempLocName),
+                    onTap: () async {
+                       // Open the Location Search Screen
+                       final result = await Navigator.push(context, MaterialPageRoute(builder: (context) => const LocationSearchScreen()));
+                       
+                       // If they picked a place, update the temporary variables
+                       if (result != null && result is Map<String, dynamic>) {
+                         setModalState(() {
+                           tempLocName = result["name"] ?? "";
+                           tempLat = result["lat"];
+                           tempLng = result["lng"];
+                         });
+                       }
+                    },
+                    decoration: InputDecoration(
+                      hintText: "Tap to search places",
+                      prefixIcon: Icon(Icons.search, color: primaryColor),
+                      filled: true,
+                      fillColor: Colors.grey.shade100,
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                    ),
+                  ),
+
+                  const SizedBox(height: 30),
+                  
+                  // --- Radius Slider ---
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text("Distance Radius", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                      Text("${tempRadius.toInt()} km", style: TextStyle(color: primaryColor, fontWeight: FontWeight.bold, fontSize: 16)),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  Slider(
+                    value: tempRadius,
+                    min: 1,
+                    max: 50,
+                    divisions: 49,
+                    activeColor: primaryColor,
+                    onChanged: (val) {
+                      setModalState(() => tempRadius = val);
+                    }
+                  ),
+                  const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 16),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text("1 km", style: TextStyle(color: Colors.grey, fontSize: 12)),
+                        Text("50 km", style: TextStyle(color: Colors.grey, fontSize: 12)),
+                      ],
+                    ),
+                  ),
+                  
+                  const SizedBox(height: 30),
+                  
+                  // --- Apply Button ---
+                  SizedBox(
+                    width: double.infinity,
+                    height: 50,
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: primaryColor,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))
+                      ),
+                      onPressed: () async {
+                        // 1. Save new location data to Firestore
+                        final currentUserId = AuthService().getCurrentUser()?.uid;
+                        if (currentUserId != null) {
+                          await FirebaseFirestore.instance.collection("users").doc(currentUserId).update({
+                            "location": tempLocName,
+                            "radiusKm": tempRadius,
+                            "lat": tempLat,
+                            "lng": tempLng,
+                          });
+                        }
+                        
+                        // 2. Update the Home Screen State
+                        setState(() {
+                          locationName = tempLocName;
+                          radiusKm = tempRadius;
+                          userLat = tempLat;
+                          userLng = tempLng;
+                        });
+                        
+                        // 3. Close the bottom sheet
+                        if (context.mounted) Navigator.pop(context);
+                      },
+                      child: const Text("Apply", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+                    )
+                  )
+                ]
+              )
+            );
+          }
+        );
+      }
+    );
+  }
   @override
   Widget build(BuildContext context) {
 
     final currentUserId = AuthService().getCurrentUser()?.uid;
 
     return Scaffold(
-      backgroundColor: Colors.grey[200],
+      backgroundColor: Colors.grey[50],
 
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
-        actions: [
-
-          IconButton(
-            icon: const Icon(Icons.logout, color: Colors.black),
-            onPressed: () {
-              AuthService().logout();
-            },
-          )
-
-        ],
+        title: GestureDetector(
+          onTap: () => _showLocationBottomSheet(context),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(Icons.location_on, color: primaryColor, size: 20),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      locationName, 
+                      style: const TextStyle(color: Colors.black, fontSize: 18, fontWeight: FontWeight.w500),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  Icon(Icons.keyboard_arrow_down, color: Colors.black, size: 18),
+                   
+                ],
+              ),
+            ],
+          ),
+        ),
       ),
 
       body: SafeArea(
