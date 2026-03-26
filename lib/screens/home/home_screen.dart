@@ -18,7 +18,7 @@ String formatDate(Timestamp? timestamp) {
   final today = DateTime(now.year, now.month, now.day);
   final tomorrow = today.add(const Duration(days: 1));
   final targetDate = DateTime(date.year, date.month, date.day);
-  
+
   String dayName;
   
   if (targetDate == today) {
@@ -82,6 +82,28 @@ class _HomeScreenState extends State<HomeScreen> {
   double? userLat;
   double? userLng;
   final Color primaryColor = const Color(0xFF0C3169);
+  bool _showAllGames = false;
+
+  final List<Map<String, String>> allSports = [
+    {"name": "Badminton", "image": "assets/badminton.png"},
+    {"name": "Pickleball", "image": "assets/pickleball.png"},
+    {"name": "Basketball", "image": "assets/basketball.png"},
+    {"name": "Tennis", "image": "assets/tennis.png"},
+    {"name": "Pilates", "image": "assets/pilates.png"},
+    {"name": "Paintball", "image": "assets/paintball.png"},
+    {"name": "Golf", "image": "assets/golf.png"},
+    {"name": "Hiking", "image": "assets/hiking.png"},
+    {"name": "Football", "image": "assets/football.png"},
+    {"name": "Futsal", "image": "assets/futsal.png"},
+    {"name": "Bowling", "image": "assets/bowling.png"},
+    {"name": "Bouldering", "image": "assets/bouldering.png"},
+    {"name": "Dodgeball", "image": "assets/dodgeball.png"}, 
+    {"name": "Running", "image": "assets/running.png"},
+    {"name": "Squash", "image": "assets/squash.png"},
+    {"name": "Table Tennis", "image": "assets/tabletennis.png"},
+    {"name": "Frisbee", "image": "assets/frisbee.png"},
+    {"name": "Volleyball", "image": "assets/volleyball.png"},
+  ];
 
   @override
   void initState() {
@@ -414,26 +436,34 @@ class _HomeScreenState extends State<HomeScreen> {
 
               const SizedBox(height: 10),
 
-              GridView.count(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                crossAxisCount: 4,
-                crossAxisSpacing: 5,
-                mainAxisSpacing: 5,
-                childAspectRatio: 0.8,
-                children: [
+              Builder(
+                builder: (context) {
+                  List<Widget> gridItems = [];
+                  
+                  if (!_showAllGames) {
+                    // Show first 7 games + View All Button
+                    for (int i = 0; i < 7; i++) {
+                      gridItems.add(gameItem(context, allSports[i]["image"]!, allSports[i]["name"]!));
+                    }
+                    gridItems.add(_buildToggleViewButton(isExpanded: false));
+                  } else {
+                    // Show all games + Show Less Button
+                    for (int i = 0; i < allSports.length; i++) {
+                      gridItems.add(gameItem(context, allSports[i]["image"]!, allSports[i]["name"]!));
+                    }
+                    gridItems.add(_buildToggleViewButton(isExpanded: true));
+                  }
 
-                  gameItem(context,"assets/badminton.png", "Badminton"),
-                  gameItem(context,"assets/pickleball.png", "Pickleball"),
-                  gameItem(context,"assets/tennis.png", "Tennis"),
-                  gameItem(context,"assets/paintball.png", "Paintball"),
-
-                  gameItem(context,"assets/basketball.png", "Basketball"),
-                  gameItem(context,"assets/football.png", "Football"),
-                  gameItem(context,"assets/futsal.png", "Futsal"),
-                  gameItem(context,"assets/golf.png", "Golf"),
-                  gameItem(context,"assets/pilates.png", "Pilates"),
-                ],
+                  return GridView.count(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    crossAxisCount: 4,
+                    crossAxisSpacing: 5,
+                    mainAxisSpacing: 5,
+                    childAspectRatio: 0.8,
+                    children: gridItems,
+                  );
+                }
               ),
 
               const SizedBox(height: 20),
@@ -867,4 +897,56 @@ Widget activityCard(QueryDocumentSnapshot doc) {
       ),
     );
   }
+
+  Widget _buildToggleViewButton({required bool isExpanded}) {
+    return GestureDetector(
+      onTap: () {
+        setState(() {
+          _showAllGames = !isExpanded;
+        });
+      },
+      child: Column(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(3),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              shape: BoxShape.circle,
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.06),
+                  blurRadius: 8,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: CircleAvatar(
+              radius: 32,
+              backgroundColor: Colors.grey.shade100,
+              child: Icon(
+                isExpanded ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down, 
+                color: primaryColor, 
+                size: 28
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            isExpanded ? "SHOW LESS" : "VIEW ALL",
+            style: TextStyle(
+              fontSize: 10, 
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.3,
+              color: primaryColor,
+            ),
+            textAlign: TextAlign.center,
+            maxLines: 1,
+          ),
+        ],
+      ),
+    );
+  }
 }
+
+/// 👇 NEW: Toggle Button for View All / Show Less
+  
