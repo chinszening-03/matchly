@@ -59,7 +59,7 @@ String formatDuration(Timestamp? start, Timestamp? end) {
 }
 
 class _ActivityListScreenState extends State<ActivityListScreen> {
-  DateTime _selectedDate = DateTime.now();
+  DateTime? _selectedDate = DateTime.now();
   
   // Filter States
   late String _selectedSport;
@@ -560,11 +560,8 @@ class _ActivityListScreenState extends State<ActivityListScreen> {
 
   @override
   Widget build(BuildContext context) {
-    DateTime startOfDay = DateTime(_selectedDate.year, _selectedDate.month, _selectedDate.day, _timeRange.start.toInt());
-    DateTime endOfDay = DateTime(_selectedDate.year, _selectedDate.month, _selectedDate.day, _timeRange.end.toInt() == 24 ? 23 : _timeRange.end.toInt(), _timeRange.end.toInt() == 24 ? 59 : 0);
-
-    DateTime today = DateTime.now();
-    int daysInMonth = DateTime(today.year, today.month + 1, today.day).difference(today).inDays;
+   DateTime today = DateTime.now();
+  int daysInMonth = DateTime(today.year, today.month + 1, today.day).difference(today).inDays;  
     
     return Scaffold(
       backgroundColor: Colors.grey[200],
@@ -668,15 +665,42 @@ class _ActivityListScreenState extends State<ActivityListScreen> {
           Container(
             height: 70, color: Colors.white, padding: const EdgeInsets.symmetric(vertical: 8),
             child: ListView.builder(
-              scrollDirection: Axis.horizontal, itemCount: daysInMonth, 
+              scrollDirection: Axis.horizontal, 
+              itemCount: daysInMonth + 1, // 👈 +1 for the "All" button
               itemBuilder: (context, index) {
-                DateTime date = DateTime.now().add(Duration(days: index));
-                bool isSelected = _isSameDay(date, _selectedDate);
+                
+                // 👇 1. "All Dates" Button (Index 0)
+                if (index == 0) {
+                  bool isSelected = _selectedDate == null;
+                  return GestureDetector(
+                    onTap: () => setState(() => _selectedDate = null),
+                    child: Container(
+                      width: 70, margin: const EdgeInsets.only(left: 16, right: 4),
+                      decoration: BoxDecoration(
+                        color: isSelected ? primaryColor : Colors.white,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: isSelected ? primaryColor : Colors.grey.shade300),
+                      ),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.calendar_month, size: 18, color: isSelected ? Colors.white : Colors.grey.shade600),
+                          const SizedBox(height: 4),
+                          Text("All Dates", style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: isSelected ? Colors.white : Colors.black)),
+                        ],
+                      ),
+                    ),
+                  );
+                }
+
+                // 👇 2. Standard Date Buttons (Subtract 1 from index)
+                DateTime date = DateTime.now().add(Duration(days: index - 1));
+                bool isSelected = _selectedDate != null && _isSameDay(date, _selectedDate!);
 
                 return GestureDetector(
                   onTap: () => setState(() => _selectedDate = date),
                   child: Container(
-                    width: 70, margin: const EdgeInsets.only(left: 12),
+                    width: 70, margin: const EdgeInsets.only(left: 8),
                     decoration: BoxDecoration(
                       color: isSelected ? primaryColor : Colors.white,
                       borderRadius: BorderRadius.circular(12),
@@ -695,7 +719,6 @@ class _ActivityListScreenState extends State<ActivityListScreen> {
               },
             ),
           ),
-
           const SizedBox(height: 10),
 
           // --- 3. STREAM BUILDER ---
@@ -704,12 +727,25 @@ class _ActivityListScreenState extends State<ActivityListScreen> {
               stream: () {
                 Query query = FirebaseFirestore.instance.collection("activities");
                 if (_selectedSport != "All") query = query.where("sport", isEqualTo: _selectedSport);
-                return query
-                    .where("startTime", isGreaterThanOrEqualTo: startOfDay)
-                    .where("startTime", isLessThanOrEqualTo: endOfDay)
-                    .orderBy("startTime")
-                    .snapshots();
-              }(), 
+                
+                // 👇 If "All Dates" is selected, just get ALL upcoming games
+                if (_selectedDate == null) {
+                  return query
+                      .where("startTime", isGreaterThanOrEqualTo: DateTime.now())
+                      .orderBy("startTime")
+                      .snapshots();
+                } else {
+                  // 👇 If a specific date is selected, apply the date and time range filters
+                  DateTime startOfDay = DateTime(_selectedDate!.year, _selectedDate!.month, _selectedDate!.day, _timeRange.start.toInt());
+                  DateTime endOfDay = DateTime(_selectedDate!.year, _selectedDate!.month, _selectedDate!.day, _timeRange.end.toInt() == 24 ? 23 : _timeRange.end.toInt(), _timeRange.end.toInt() == 24 ? 59 : 0);
+
+                  return query
+                      .where("startTime", isGreaterThanOrEqualTo: startOfDay)
+                      .where("startTime", isLessThanOrEqualTo: endOfDay)
+                      .orderBy("startTime")
+                      .snapshots();
+                }
+              }(),
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
                 
