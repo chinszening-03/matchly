@@ -436,6 +436,10 @@ class _HomeScreenState extends State<HomeScreen> {
 
               const SizedBox(height: 10),
 
+              _buildExploreAllButton(context),
+
+              const SizedBox(height: 15),
+
               Builder(
                 builder: (context) {
                   List<Widget> gridItems = [];
@@ -894,6 +898,62 @@ Widget activityCard(QueryDocumentSnapshot doc) {
             overflow: TextOverflow.ellipsis,
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildExploreAllButton(BuildContext context) {
+    return GestureDetector(
+      onTap: () {
+        // Navigate to the list screen, passing "All" so it doesn't filter by sport
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => const ActivityListScreen(sport: "All"), 
+          ),
+        );
+      },
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 20),
+        decoration: BoxDecoration(
+          color: primaryColor,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: primaryColor.withOpacity(0.3),
+              blurRadius: 12,
+              offset: const Offset(0, 6),
+            ),
+          ],
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  "Explore All Games", 
+                  style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  "Find matches happening around you", 
+                  style: TextStyle(color: Colors.white.withOpacity(0.8), fontSize: 12)
+                ),
+              ],
+            ),
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.2),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.arrow_forward_ios, color: Colors.white, size: 16),
+            )
+          ],
+        ),
       ),
     );
   }
