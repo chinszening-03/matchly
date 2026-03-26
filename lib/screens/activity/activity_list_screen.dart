@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart'; 
 import '../../services/auth_service.dart'; 
 import 'activitiy_details_screen.dart';
+import './location_search_screen.dart';
+import 'dart:ui' as ui;
+import 'dart:typed_data';
 
 class ActivityListScreen extends StatefulWidget {
   final String sport;
@@ -18,7 +22,6 @@ String formatDate(Timestamp? timestamp) {
   final date = timestamp.toDate();
   final now = DateTime.now();
   
-  // Strip out the hours/minutes to accurately compare just the calendar days
   final today = DateTime(now.year, now.month, now.day);
   final tomorrow = today.add(const Duration(days: 1));
   final targetDate = DateTime(date.year, date.month, date.day);
@@ -30,15 +33,9 @@ String formatDate(Timestamp? timestamp) {
   } else if (targetDate == tomorrow) {
     dayName = "Tomorrow";
   } else {
-    // If it's not today or tomorrow, get the full day name
-    List<String> days = [
-      "Monday", "Tuesday", "Wednesday", "Thursday", 
-      "Friday", "Saturday", "Sunday"
-    ];
+    List<String> days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
     dayName = days[date.weekday - 1];
   }
-
-  // Returns formats like: "Today, 19/3/2026" or "Monday, 23/3/2026"
   return "$dayName, ${date.day}/${date.month}/${date.year}";
 }
 
@@ -52,18 +49,13 @@ String formatTime(Timestamp? timestamp) {
 
 String formatDuration(Timestamp? start, Timestamp? end) {
   if (start == null || end == null) return "";
-  
   final difference = end.toDate().difference(start.toDate());
   final hours = difference.inHours;
   final minutes = difference.inMinutes % 60;
   
-  if (hours > 0 && minutes > 0) {
-    return "${hours}h ${minutes}m";
-  } else if (hours > 0) {
-    return "$hours hr${hours > 1 ? 's' : ''}";
-  } else {
-    return "$minutes mins";
-  }
+  if (hours > 0 && minutes > 0) return "${hours}h ${minutes}m";
+  if (hours > 0) return "$hours hr${hours > 1 ? 's' : ''}";
+  return "$minutes mins";
 }
 
 class _ActivityListScreenState extends State<ActivityListScreen> {
@@ -71,10 +63,18 @@ class _ActivityListScreenState extends State<ActivityListScreen> {
   
   // Filter States
   late String _selectedSport;
-  String _sortBy = 'time'; // 'time' or 'distance'
-  RangeValues _timeRange = const RangeValues(0, 24); // 0 = 12 AM, 24 = 11:59 PM
+  String _sortBy = 'time'; 
+  RangeValues _timeRange = const RangeValues(0, 24); 
+  
+  // Location & Map States
+  String locationName = "Fetching location...";
+  double radiusKm = 10.0;
+  double? userLat;
+  double? userLng;
+  bool _isMapView = false;
+  final Color primaryColor = const Color(0xFF0C3169);
 
-  // List of all available sports and their asset paths
+  // List of all available sports
   final List<Map<String, String>> allSports = [
     {"name": "Badminton", "image": "assets/badminton.png"},
     {"name": "Pickleball", "image": "assets/pickleball.png"},
@@ -99,7 +99,269 @@ class _ActivityListScreenState extends State<ActivityListScreen> {
   @override
   void initState() {
     super.initState();
-    _selectedSport = widget.sport; // Initialize with the sport passed from Home
+    _selectedSport = widget.sport; 
+    loadUserData();
+  }
+
+  Future<BitmapDescriptor> _getCustomMarker(int count) async {
+    final ui.PictureRecorder pictureRecorder = ui.PictureRecorder();
+    final Canvas canvas = Canvas(pictureRecorder);
+    
+    // Dimensions for the pin
+    const double width = 120;
+    const double height = 160;
+    const double radius = width / 2;
+
+    // 1. Draw Outer White Pin (Teardrop shape)
+    Path outerPath = Path();
+    outerPath.moveTo(radius, height); // Bottom point
+    outerPath.quadraticBezierTo(0, height * 0.65, 0, radius); // Left curve
+    outerPath.arcToPoint(const Offset(width, radius), radius: const Radius.circular(radius), clockwise: true); // Top semicircle
+    outerPath.quadraticBezierTo(width, height * 0.65, radius, height); // Right curve
+    outerPath.close();
+
+    final Paint borderPaint = Paint()..color = Colors.white..style = PaintingStyle.fill;
+    canvas.drawShadow(outerPath, Colors.black, 6.0, false); // Adds a nice drop shadow
+    canvas.drawPath(outerPath, borderPaint);
+
+    // 2. Draw Inner Blue Pin
+    const double padding = 8.0;
+    const double innerWidth = width - (padding * 2);
+    const double innerRadius = innerWidth / 2;
+    
+    Path innerPath = Path();
+    innerPath.moveTo(radius, height - padding - 4); // Inner bottom point
+    innerPath.quadraticBezierTo(padding, height * 0.65, padding, radius);
+    innerPath.arcToPoint(const Offset(width - padding, radius), radius: const Radius.circular(innerRadius), clockwise: true);
+    innerPath.quadraticBezierTo(width - padding, height * 0.65, radius, height - padding - 4);
+    innerPath.close();
+
+    final Paint bgPaint = Paint()..color = primaryColor..style = PaintingStyle.fill;
+    canvas.drawPath(innerPath, bgPaint);
+
+    // 3. Draw the Number Text inside the circular top half
+    TextPainter textPainter = TextPainter(
+      text: TextSpan(
+        text: count.toString(),
+        style: const TextStyle(fontSize: 48, color: Colors.white, fontWeight: FontWeight.bold),
+      ),
+      textDirection: TextDirection.ltr,
+    );
+    textPainter.layout();
+    
+    // Center the text mathematically in the top circle part of the pin
+    textPainter.paint(
+      canvas,
+      Offset((width - textPainter.width) / 2, radius - (textPainter.height / 2) ), 
+    );
+
+    // Convert Canvas to Image
+    final ui.Image img = await pictureRecorder.endRecording().toImage(width.toInt(), height.toInt());
+    final ByteData? data = await img.toByteData(format: ui.ImageByteFormat.png);
+    
+    return BitmapDescriptor.fromBytes(data!.buffer.asUint8List());
+  }
+
+  Future<Set<Marker>> _buildMapMarkers(List<QueryDocumentSnapshot> docs) async {
+    Map<String, List<QueryDocumentSnapshot>> groupedActivities = {};
+    
+    // 1. Group by location
+    for (var doc in docs) {
+      final data = doc.data() as Map<String, dynamic>;
+      if (data['coordinates'] == null) continue; 
+      GeoPoint geoPoint = data['coordinates'] as GeoPoint;
+      String locKey = "${geoPoint.latitude}_${geoPoint.longitude}";
+      
+      if (!groupedActivities.containsKey(locKey)) groupedActivities[locKey] = [];
+      groupedActivities[locKey]!.add(doc);
+    }
+
+    Set<Marker> markers = {};
+    
+    // 2. Create Custom Markers
+    for (var entry in groupedActivities.entries) {
+      List<QueryDocumentSnapshot> games = entry.value;
+      final firstGame = games.first.data() as Map<String, dynamic>;
+      GeoPoint geoPoint = firstGame['coordinates'] as GeoPoint;
+      int gameCount = games.length;
+
+      // 🎨 Get our custom drawn marker with the number!
+      BitmapDescriptor customIcon = await _getCustomMarker(gameCount);
+
+      markers.add(Marker(
+        markerId: MarkerId(entry.key),
+        position: LatLng(geoPoint.latitude, geoPoint.longitude),
+        icon: customIcon,
+        anchor: const Offset(0.5, 1.0),
+        infoWindow: InfoWindow(
+          title: gameCount > 1 ? "$gameCount Games Here" : firstGame['name'] ?? 'Game',
+          snippet: gameCount > 1 
+              ? "Tap here to view all games" 
+              : "${firstGame['sport']} • ${formatTime(firstGame['startTime'] as Timestamp?)}",
+          onTap: () {
+            if (gameCount == 1) {
+              Navigator.push(context, MaterialPageRoute(builder: (_) => ActivityDetailsScreen(activityId: games.first.id)));
+            } else {
+              _showGamesAtLocationSheet(context, games);
+            }
+          }
+        ),
+      ));
+    }
+    return markers;
+  }
+
+  Future<void> loadUserData() async {
+    final currentUserId = AuthService().getCurrentUser()?.uid;
+    if (currentUserId == null) return;
+
+    final userDoc = await FirebaseFirestore.instance.collection("users").doc(currentUserId).get();
+
+    if (mounted) {
+      setState(() {
+        locationName = userDoc.data()?["location"] ?? "Set your location";
+        radiusKm = (userDoc.data()?["radiusKm"] ?? 10.0).toDouble();
+        userLat = userDoc.data()?["lat"];
+        userLng = userDoc.data()?["lng"];
+      });
+    }
+  }
+
+  // --- MAP MULTI-GAME BOTTOM SHEET ---
+  void _showGamesAtLocationSheet(BuildContext context, List<QueryDocumentSnapshot> games) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent, 
+      builder: (context) {
+        return Container(
+          height: MediaQuery.of(context).size.height * 0.6, 
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(20))
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  margin: const EdgeInsets.only(top: 12, bottom: 16),
+                  width: 40, height: 5,
+                  decoration: BoxDecoration(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(10)),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Text(
+                  "${games.length} Games at this location", 
+                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)
+                ),
+              ),
+              const SizedBox(height: 12),
+              Expanded(
+                child: ListView.builder(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  itemCount: games.length,
+                  itemBuilder: (context, index) {
+                    return activityCard(games[index]);
+                  }
+                ),
+              ),
+            ],
+          ),
+        );
+      }
+    );
+  }
+
+  // --- LOCATION FILTER BOTTOM SHEET ---
+  void _showLocationBottomSheet(BuildContext context) {
+    String tempLocName = locationName;
+    double tempRadius = radiusKm;
+    double? tempLat = userLat;
+    double? tempLng = userLng;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true, 
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return Padding(
+              padding: EdgeInsets.only(
+                bottom: MediaQuery.of(context).viewInsets.bottom + 20,
+                top: 24, left: 20, right: 20
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text("Location & Radius", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 24),
+                  const Text("Area / City", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                  const SizedBox(height: 8),
+                  TextField(
+                    readOnly: true, 
+                    controller: TextEditingController(text: tempLocName),
+                    onTap: () async {
+                       final result = await Navigator.push(context, MaterialPageRoute(builder: (context) => const LocationSearchScreen()));
+                       if (result != null && result is Map<String, dynamic>) {
+                         setModalState(() {
+                           tempLocName = result["name"] ?? "";
+                           tempLat = result["lat"];
+                           tempLng = result["lng"];
+                         });
+                       }
+                    },
+                    decoration: InputDecoration(
+                      hintText: "Tap to search places",
+                      prefixIcon: Icon(Icons.search, color: primaryColor),
+                      filled: true,
+                      fillColor: Colors.grey.shade100,
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                    ),
+                  ),
+                  const SizedBox(height: 30),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text("Distance Radius", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                      Text("${tempRadius.toInt()} km", style: TextStyle(color: primaryColor, fontWeight: FontWeight.bold, fontSize: 16)),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  Slider(
+                    value: tempRadius, min: 1, max: 50, divisions: 49, activeColor: primaryColor,
+                    onChanged: (val) => setModalState(() => tempRadius = val)
+                  ),
+                  const SizedBox(height: 30),
+                  SizedBox(
+                    width: double.infinity, height: 50,
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(backgroundColor: primaryColor, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+                      onPressed: () async {
+                        final currentUserId = AuthService().getCurrentUser()?.uid;
+                        if (currentUserId != null) {
+                          await FirebaseFirestore.instance.collection("users").doc(currentUserId).update({
+                            "location": tempLocName, "radiusKm": tempRadius, "lat": tempLat, "lng": tempLng,
+                          });
+                        }
+                        setState(() {
+                          locationName = tempLocName; radiusKm = tempRadius; userLat = tempLat; userLng = tempLng;
+                        });
+                        if (context.mounted) Navigator.pop(context);
+                      },
+                      child: const Text("Apply", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+                    )
+                  )
+                ]
+              )
+            );
+          }
+        );
+      }
+    );
   }
 
   Future<void> joinActivity(String docId) async {
@@ -107,29 +369,20 @@ class _ActivityListScreenState extends State<ActivityListScreen> {
     if (currentUserId == null) return;
 
     try {
-      await FirebaseFirestore.instance
-          .collection("activities")
-          .doc(docId)
-          .update({
+      await FirebaseFirestore.instance.collection("activities").doc(docId).update({
         "participants": FieldValue.arrayUnion([currentUserId])
       });
 
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Successfully joined the game!")),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Successfully joined the game!")));
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Error joining game: $e")),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error joining game: $e")));
     }
   }
 
   bool _isSameDay(DateTime date1, DateTime date2) {
-    return date1.year == date2.year &&
-        date1.month == date2.month &&
-        date1.day == date2.day;
+    return date1.year == date2.year && date1.month == date2.month && date1.day == date2.day;
   }
 
   String _formatDayName(DateTime date) {
@@ -152,7 +405,7 @@ class _ActivityListScreenState extends State<ActivityListScreen> {
     return hour > 12 ? "${hour - 12} PM" : "$hour AM";
   }
 
-  // --- MODAL SHEETS ---
+  // --- OTHER MODAL SHEETS ---
 
   void _showSortByModal() {
     showModalBottomSheet(
@@ -169,7 +422,7 @@ class _ActivityListScreenState extends State<ActivityListScreen> {
               const SizedBox(height: 10),
               ListTile(
                 title: const Text("Time (Default)"),
-                trailing: _sortBy == 'time' ? const Icon(Icons.check, color: Color(0xFF0D47A1)) : null,
+                trailing: _sortBy == 'time' ? Icon(Icons.check, color: primaryColor) : null,
                 onTap: () {
                   setState(() => _sortBy = 'time');
                   Navigator.pop(context);
@@ -177,11 +430,9 @@ class _ActivityListScreenState extends State<ActivityListScreen> {
               ),
               ListTile(
                 title: const Text("Distance"),
-                trailing: _sortBy == 'distance' ? const Icon(Icons.check, color: Color(0xFF0D47A1)) : null,
+                trailing: _sortBy == 'distance' ? Icon(Icons.check, color: primaryColor) : null,
                 onTap: () {
                   setState(() => _sortBy = 'distance');
-                  // Note: True distance sorting requires User's Location + GeoFlutterFire. 
-                  // For now, it will just change the state.
                   Navigator.pop(context);
                 },
               ),
@@ -193,14 +444,13 @@ class _ActivityListScreenState extends State<ActivityListScreen> {
   }
 
   void _showTimeModal() {
-    // Need a temporary state variable for the slider while modal is open
     RangeValues tempRange = _timeRange; 
 
     showModalBottomSheet(
       context: context,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (context) {
-        return StatefulBuilder( // StatefulBuilder allows the modal to update its own UI
+        return StatefulBuilder(
           builder: (context, setModalState) {
             return Padding(
               padding: const EdgeInsets.all(20),
@@ -218,29 +468,16 @@ class _ActivityListScreenState extends State<ActivityListScreen> {
                     ],
                   ),
                   RangeSlider(
-                    values: tempRange,
-                    min: 0,
-                    max: 24,
-                    divisions: 24,
-                    activeColor: const Color(0xFF0D47A1),
-                    onChanged: (values) {
-                      setModalState(() {
-                        tempRange = values;
-                      });
-                    },
+                    values: tempRange, min: 0, max: 24, divisions: 24, activeColor: primaryColor,
+                    onChanged: (values) => setModalState(() => tempRange = values),
                   ),
                   const SizedBox(height: 10),
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF0D47A1),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                      ),
+                      style: ElevatedButton.styleFrom(backgroundColor: primaryColor, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
                       onPressed: () {
-                        setState(() {
-                          _timeRange = tempRange; // Apply to main screen
-                        });
+                        setState(() => _timeRange = tempRange);
                         Navigator.pop(context);
                       },
                       child: const Text("Apply", style: TextStyle(color: Colors.white)),
@@ -272,27 +509,18 @@ class _ActivityListScreenState extends State<ActivityListScreen> {
               Expanded(
                 child: GridView.builder(
                   gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 4,
-                    crossAxisSpacing: 10,
-                    mainAxisSpacing: 16,
-                    childAspectRatio: 0.75,
+                    crossAxisCount: 4, crossAxisSpacing: 10, mainAxisSpacing: 16, childAspectRatio: 0.75,
                   ),
-                  // +1 to accommodate the "All" button at the beginning
                   itemCount: allSports.length + 1, 
                   itemBuilder: (context, index) {
-                    
-                    // --- NEW LOGIC: Check if it's the "All" button ---
                     final isAll = index == 0;
                     final sportName = isAll ? "All" : allSports[index - 1]["name"]!;
                     final sportImage = isAll ? "" : allSports[index - 1]["image"]!;
-                    
                     final isSelected = _selectedSport.toLowerCase() == sportName.toLowerCase();
                     
                     return GestureDetector(
                       onTap: () {
-                        setState(() {
-                          _selectedSport = sportName;
-                        });
+                        setState(() => _selectedSport = sportName);
                         Navigator.pop(context);
                       },
                       child: Column(
@@ -300,28 +528,22 @@ class _ActivityListScreenState extends State<ActivityListScreen> {
                           Container(
                             decoration: BoxDecoration(
                               shape: BoxShape.circle,
-                              border: isSelected ? Border.all(color: const Color(0xFF0C3169), width: 3) : null,
+                              border: isSelected ? Border.all(color: primaryColor, width: 3) : null,
                             ),
                             child: CircleAvatar(
-                              radius: 30,
-                              backgroundColor: Colors.grey.shade100,
-                              // If it's "All", don't use an image. If it's a sport, use the asset.
+                              radius: 30, backgroundColor: Colors.grey.shade100,
                               backgroundImage: isAll ? null : AssetImage(sportImage),
-                              // If it's "All", show a nice grid icon
-                              child: isAll ? const Icon(Icons.apps, size: 28, color: Color(0xFF0C3169)) : null,
+                              child: isAll ? Icon(Icons.apps, size: 28, color: primaryColor) : null,
                             ),
                           ),
                           const SizedBox(height: 6),
                           Text(
                             sportName.toUpperCase(),
                             style: TextStyle(
-                              fontSize: 9,
-                              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                              color: isSelected ? const Color(0xFF0C3169) : Colors.black,
+                              fontSize: 9, fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                              color: isSelected ? primaryColor : Colors.black,
                             ),
-                            textAlign: TextAlign.center,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
+                            textAlign: TextAlign.center, maxLines: 1, overflow: TextOverflow.ellipsis,
                           ),
                         ],
                       ),
@@ -338,21 +560,8 @@ class _ActivityListScreenState extends State<ActivityListScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // Dynamically calculate Start and End time based on the slider state
-    DateTime startOfDay = DateTime(
-      _selectedDate.year, 
-      _selectedDate.month, 
-      _selectedDate.day, 
-      _timeRange.start.toInt()
-    );
-    
-    DateTime endOfDay = DateTime(
-      _selectedDate.year, 
-      _selectedDate.month, 
-      _selectedDate.day, 
-      _timeRange.end.toInt() == 24 ? 23 : _timeRange.end.toInt(), 
-      _timeRange.end.toInt() == 24 ? 59 : 0
-    );
+    DateTime startOfDay = DateTime(_selectedDate.year, _selectedDate.month, _selectedDate.day, _timeRange.start.toInt());
+    DateTime endOfDay = DateTime(_selectedDate.year, _selectedDate.month, _selectedDate.day, _timeRange.end.toInt() == 24 ? 23 : _timeRange.end.toInt(), _timeRange.end.toInt() == 24 ? 59 : 0);
 
     DateTime today = DateTime.now();
     int daysInMonth = DateTime(today.year, today.month + 1, today.day).difference(today).inDays;
@@ -360,39 +569,49 @@ class _ActivityListScreenState extends State<ActivityListScreen> {
     return Scaffold(
       backgroundColor: Colors.grey[200],
       appBar: AppBar(
-        title: Text(_selectedSport, style: const TextStyle(color: Colors.black)), // Updates when sport changes
         backgroundColor: Colors.white,
         elevation: 0,
         iconTheme: const IconThemeData(color: Colors.black),
+        title: GestureDetector(
+          onTap: () => _showLocationBottomSheet(context),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.location_on, color: primaryColor, size: 20),
+              const SizedBox(width: 6),
+              Flexible(
+                child: Text(
+                  locationName, 
+                  style: const TextStyle(color: Colors.black, fontSize: 16, fontWeight: FontWeight.bold),
+                  maxLines: 1, overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              const Icon(Icons.keyboard_arrow_down, color: Colors.black, size: 18),
+            ],
+          ),
+        ),
       ),
       body: Column(
         children: [
-          
           // --- 1. FILTER BAR ---
           Container(
-            height: 60,
-            color: Colors.white,
-            padding: const EdgeInsets.symmetric(vertical: 10),
+            height: 60, color: Colors.white, padding: const EdgeInsets.symmetric(vertical: 10),
             child: ListView(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 16),
+              scrollDirection: Axis.horizontal, padding: const EdgeInsets.symmetric(horizontal: 16),
               children: [
-                
                 // Map Button
                 Container(
                   margin: const EdgeInsets.only(right: 10),
                   decoration: BoxDecoration(
-                    color: Colors.grey.shade200,
+                    color: _isMapView ? primaryColor.withOpacity(0.1) : Colors.grey.shade200,
+                    border: Border.all(color: _isMapView ? primaryColor : Colors.transparent),
                     borderRadius: BorderRadius.circular(20)
                   ),
                   child: IconButton(
-                    icon: const Icon(Icons.map_outlined, size: 20),
-                    onPressed: () {
-                      // TODO: Implement Map View
-                    },
+                    icon: Icon(_isMapView ? Icons.format_list_bulleted : Icons.map_outlined, size: 20, color: _isMapView ? primaryColor : Colors.black87),
+                    onPressed: () => setState(() => _isMapView = !_isMapView),
                   ),
                 ),
-
                 // Sort By Chip
                 Padding(
                   padding: const EdgeInsets.only(right: 8),
@@ -408,7 +627,6 @@ class _ActivityListScreenState extends State<ActivityListScreen> {
                     onPressed: _showSortByModal,
                   ),
                 ),
-
                 // Time Chip
                 Padding(
                   padding: const EdgeInsets.only(right: 8),
@@ -418,28 +636,23 @@ class _ActivityListScreenState extends State<ActivityListScreen> {
                       children: [
                         const Icon(Icons.access_time, size: 16),
                         const SizedBox(width: 4),
-                        Text(
-                          _timeRange.start == 0 && _timeRange.end == 24 
-                          ? "Start Time" 
-                          : "${_formatHour(_timeRange.start)} - ${_formatHour(_timeRange.end)}"
-                        ),
+                        Text(_timeRange.start == 0 && _timeRange.end == 24 ? "Start Time" : "${_formatHour(_timeRange.start)} - ${_formatHour(_timeRange.end)}"),
                       ],
                     ),
                     onPressed: _showTimeModal,
                   ),
                 ),
-
                 // Sports Chip
                 Padding(
                   padding: const EdgeInsets.only(right: 8),
                   child: ActionChip(
-                    backgroundColor: const Color(0xFF0D47A1).withValues(alpha: 0.1), // Slightly highlight active sport
+                    backgroundColor: primaryColor.withOpacity(0.1), 
                     label: Row(
                       children: [
-                        const Icon(Icons.sports_tennis, size: 16, color: Color(0xFF0D47A1)),
+                        Icon(Icons.sports_tennis, size: 16, color: primaryColor),
                         const SizedBox(width: 4),
-                        Text(_selectedSport, style: const TextStyle(color: Color(0xFF0D47A1), fontWeight: FontWeight.bold)),
-                        const Icon(Icons.keyboard_arrow_down, size: 16, color: Color(0xFF0D47A1)),
+                        Text(_selectedSport, style: TextStyle(color: primaryColor, fontWeight: FontWeight.bold)),
+                        Icon(Icons.keyboard_arrow_down, size: 16, color: primaryColor),
                       ],
                     ),
                     onPressed: _showSportsModal,
@@ -451,53 +664,30 @@ class _ActivityListScreenState extends State<ActivityListScreen> {
           
           const Divider(height: 1),
 
-          // --- 2. THE DATE FILTER ROW ---
+          // --- 2. DATE FILTER ROW ---
           Container(
-            height: 70,
-            color: Colors.white,
-            padding: const EdgeInsets.symmetric(vertical: 8),
+            height: 70, color: Colors.white, padding: const EdgeInsets.symmetric(vertical: 8),
             child: ListView.builder(
-              scrollDirection: Axis.horizontal,
-              itemCount: daysInMonth, 
+              scrollDirection: Axis.horizontal, itemCount: daysInMonth, 
               itemBuilder: (context, index) {
                 DateTime date = DateTime.now().add(Duration(days: index));
                 bool isSelected = _isSameDay(date, _selectedDate);
 
                 return GestureDetector(
-                  onTap: () {
-                    setState(() {
-                      _selectedDate = date;
-                    });
-                  },
+                  onTap: () => setState(() => _selectedDate = date),
                   child: Container(
-                    width: 70,
-                    margin: const EdgeInsets.only(left: 12),
+                    width: 70, margin: const EdgeInsets.only(left: 12),
                     decoration: BoxDecoration(
-                      color: isSelected ? const Color(0xFF0D47A1) : Colors.white,
+                      color: isSelected ? primaryColor : Colors.white,
                       borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: isSelected ? const Color(0xFF0D47A1) : Colors.grey.shade300,
-                      ),
+                      border: Border.all(color: isSelected ? primaryColor : Colors.grey.shade300),
                     ),
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Text(
-                          _formatDayName(date),
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.bold,
-                            color: isSelected ? Colors.white : Colors.grey.shade600,
-                          ),
-                        ),
+                        Text(_formatDayName(date), style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: isSelected ? Colors.white : Colors.grey.shade600)),
                         const SizedBox(height: 4),
-                        Text(
-                          "${date.day} ${_formatMonth(date.month)}",
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: isSelected ? Colors.white : Colors.black,
-                          ),
-                        ),
+                        Text("${date.day} ${_formatMonth(date.month)}", style: TextStyle(fontSize: 12, color: isSelected ? Colors.white : Colors.black)),
                       ],
                     ),
                   ),
@@ -512,45 +702,56 @@ class _ActivityListScreenState extends State<ActivityListScreen> {
           Expanded(
             child: StreamBuilder<QuerySnapshot>(
               stream: () {
-                // Dynamically build the query
                 Query query = FirebaseFirestore.instance.collection("activities");
-                
-                // Only add the Sport filter if the user hasn't selected "All"
-                if (_selectedSport != "All") {
-                  query = query.where("sport", isEqualTo: _selectedSport);
-                }
-
-                // Always apply the date and time filters
+                if (_selectedSport != "All") query = query.where("sport", isEqualTo: _selectedSport);
                 return query
                     .where("startTime", isGreaterThanOrEqualTo: startOfDay)
                     .where("startTime", isLessThanOrEqualTo: endOfDay)
                     .orderBy("startTime")
                     .snapshots();
-              }(), // Executes the function immediately to return the stream
+              }(), 
               builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
+                if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
+                
+                if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                  return Center(child: Text("No games found for this time.", style: TextStyle(color: Colors.grey.shade600)));
                 }
 
-                if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-                  return Center(
-                    child: Text(
-                      _selectedSport == "All" 
-                          ? "No games found for this time." 
-                          : "No $_selectedSport games found for this time.", 
-                      style: const TextStyle(color: Colors.grey)
-                    ),
+                // --- MAP OR LIST ---
+                if (_isMapView) {
+                  // --- GOOGLE MAPS VIEW WITH CUSTOM PINS ---
+                  return FutureBuilder<Set<Marker>>(
+                    // 👇 We pass the documents to the async function you added earlier
+                    future: _buildMapMarkers(snapshot.data!.docs),
+                    builder: (context, markerSnapshot) {
+                      
+                      // Wait for the custom pins to finish drawing
+                      if (markerSnapshot.connectionState == ConnectionState.waiting) {
+                        return const Center(child: CircularProgressIndicator(color: Color(0xFF0C3169)));
+                      }
+
+                      // Draw the map with the newly created custom pins!
+                      return GoogleMap(
+                        initialCameraPosition: CameraPosition(
+                          target: LatLng(userLat ?? 3.1390, userLng ?? 101.6869), 
+                          zoom: 12.0,
+                        ),
+                        myLocationEnabled: true,
+                        myLocationButtonEnabled: true,
+                        markers: markerSnapshot.data ?? {}, // 👈 Here are your custom markers!
+                      );
+                    }
+                  );
+                } else {
+                  // --- TRADITIONAL LIST VIEW ---
+                  return ListView.builder(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                    itemCount: snapshot.data!.docs.length,
+                    itemBuilder: (context, index) {
+                      return activityCard(snapshot.data!.docs[index]);
+                    },
                   );
                 }
-
-                return ListView.builder(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                  itemCount: snapshot.data!.docs.length,
-                  itemBuilder: (context, index) {
-                    var doc = snapshot.data!.docs[index];
-                    return activityCard(doc);
-                  },
-                );
               },
             ),
           ),
@@ -559,6 +760,7 @@ class _ActivityListScreenState extends State<ActivityListScreen> {
     );
   }
 
+  // --- REUSABLE ACTIVITY CARD ---
   Widget activityCard(QueryDocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>;
 
@@ -573,7 +775,6 @@ class _ActivityListScreenState extends State<ActivityListScreen> {
     final start = data["startTime"] as Timestamp?;
     final end = data["endTime"] as Timestamp?;
 
-    // --- AUTH & PARTICIPANT LOGIC ---
     final currentUserId = AuthService().getCurrentUser()?.uid;
     final createdBy = data["createdBy"] ?? "";
     final participants = List<String>.from(data["participants"] ?? []);
@@ -584,153 +785,88 @@ class _ActivityListScreenState extends State<ActivityListScreen> {
     final reservedSpots = List<String>.from(data["reservedSpots"] ?? []);
     final totalJoined = participants.length + reservedSpots.length; 
 
-    // Dynamically build the details string (Players + Type + Price)
     String detailsText = "$totalJoined/$max players • $gameType";
     if (price > 0) {
       detailsText += " • RM $price";
     }
 
-    // --- AVATAR LOGIC SETUP ---
-    int maxDisplay = 7; // Maximum number of circles to draw before showing "+X"
-    
+    int maxDisplay = 7; 
     int filledCircles = totalJoined > maxDisplay ? maxDisplay : totalJoined;
     int emptyCircles = max > maxDisplay ? maxDisplay - filledCircles : max - filledCircles;
-    
-    // Prevent negative empty circles if data is ever weird
     if (emptyCircles < 0) emptyCircles = 0; 
 
     return GestureDetector(
       onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => ActivityDetailsScreen(activityId: doc.id),
-          ),
-        );
+        Navigator.push(context, MaterialPageRoute(builder: (context) => ActivityDetailsScreen(activityId: doc.id)));
       },
       child: Container(
-      width: double.infinity, // Set to fill screen width for vertical list
-      margin: const EdgeInsets.only(bottom: 16), // Bottom margin for vertical scrolling
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: Colors.grey.shade100),
         boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          )
+          BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 10, offset: const Offset(0, 4))
         ],
       ),
       padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          /// 🔵 SPORT TAG
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            decoration: BoxDecoration(
-              color: const Color(0xFF0C3169).withValues(alpha: 0.1), // Soft background
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: Text(
-              sport.toUpperCase(),
-              style: const TextStyle(
-                color: Color(0xFF0C3169), // Primary colored text
-                fontSize: 10,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 0.5,
-              ),
-            ),
+            decoration: BoxDecoration(color: primaryColor.withOpacity(0.1), borderRadius: BorderRadius.circular(20)),
+            child: Text(sport.toUpperCase(), style: TextStyle(color: primaryColor, fontSize: 10, fontWeight: FontWeight.w800, letterSpacing: 0.5)),
           ),
           const SizedBox(height: 12),
 
-          /// 🏸 GAME NAME
-          Text(
-            name,
-            style: const TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-              color: Colors.black87,
-            ),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
+          Text(name, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black87), maxLines: 1, overflow: TextOverflow.ellipsis),
           const SizedBox(height: 10),
 
           FutureBuilder<List<DocumentSnapshot>>(
-            future: Future.wait(
-              participants.take(maxDisplay).map(
-                (uid) => FirebaseFirestore.instance.collection("users").doc(uid).get()
-              )
-            ),
+            future: Future.wait(participants.take(maxDisplay).map((uid) => FirebaseFirestore.instance.collection("users").doc(uid).get())),
             builder: (context, snapshot) {
               List<Widget> avatarWidgets = [];
 
-              // 1. Generate Actual Users
               if (snapshot.connectionState == ConnectionState.waiting) {
-                // Loading placeholders
                 for (int i = 0; i < (participants.length > maxDisplay ? maxDisplay : participants.length); i++) {
-                  avatarWidgets.add(
-                    Container(
-                      width: 40, height: 40, margin: const EdgeInsets.only(right: 6),
-                      decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.grey.shade200, border: Border.all(color: Colors.white, width: 2)),
-                    )
-                  );
+                  avatarWidgets.add(Container(width: 40, height: 40, margin: const EdgeInsets.only(right: 6), decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.grey.shade200, border: Border.all(color: Colors.white, width: 2))));
                 }
               } else if (snapshot.hasData) {
                 for (int i = 0; i < snapshot.data!.length; i++) {
                   var userDoc = snapshot.data![i].data() as Map<String, dynamic>?;
                   String profilePicUrl = userDoc?["profilePicUrl"] ?? "";
-
                   avatarWidgets.add(
                     Container(
                       margin: const EdgeInsets.only(right: 6), 
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle, border: Border.all(color: Colors.white, width: 2), boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 4)],
-                      ),
+                      decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: Colors.white, width: 2), boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 4)]),
                       child: CircleAvatar(
-                        radius: 18, 
-                        backgroundColor: const Color(0xFF0C3169).withOpacity(0.1),
+                        radius: 18, backgroundColor: primaryColor.withOpacity(0.1),
                         backgroundImage: profilePicUrl.isNotEmpty ? NetworkImage(profilePicUrl) : null,
-                        child: profilePicUrl.isEmpty ? const Icon(Icons.person, size: 20, color: Color(0xFF0C3169)) : null, 
+                        child: profilePicUrl.isEmpty ? Icon(Icons.person, size: 20, color: primaryColor) : null, 
                       ),
                     ),
                   );
                 }
               }
 
-              // 2. Generate Reserved Spots (Orange Avatars)
               int spotsLeftToDisplay = maxDisplay - avatarWidgets.length;
               for (int i = 0; i < reservedSpots.length && i < spotsLeftToDisplay; i++) {
                 avatarWidgets.add(
                   Container(
                     margin: const EdgeInsets.only(right: 6), 
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle, border: Border.all(color: Colors.white, width: 2), boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 4)],
-                    ),
-                    child: CircleAvatar(
-                      radius: 18, 
-                      backgroundColor:  Color(0xFF0C3169).withOpacity(0.1),
-                      child: const Icon(Icons.person, size: 20, color: Color(0xFF0C3169)), 
-                    ),
+                    decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: Colors.white, width: 2), boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 4)]),
+                    child: CircleAvatar(radius: 18, backgroundColor: primaryColor.withOpacity(0.1), child: Icon(Icons.person, size: 20, color: primaryColor)),
                   ),
                 );
               }
 
-              // 2. Generate Empty Avatars
               for (int i = 0; i < emptyCircles; i++) {
                 avatarWidgets.add(
                   Container(
-                    width: 40, // Increased to match new radius size
-                    height: 40,
-                    margin: const EdgeInsets.only(right: 6), // Creates the gap
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: Colors.grey.shade50,
-                      border: Border.all(color: Colors.grey.shade300, width: 1.5, strokeAlign: BorderSide.strokeAlignInside),
-                    ),
+                    width: 40, height: 40, margin: const EdgeInsets.only(right: 6),
+                    decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.grey.shade50, border: Border.all(color: Colors.grey.shade300, width: 1.5, strokeAlign: BorderSide.strokeAlignInside)),
                   ),
                 );
               }
@@ -740,97 +876,44 @@ class _ActivityListScreenState extends State<ActivityListScreen> {
           
           const SizedBox(height: 20),
 
-          /// 📌 TYPE + PRICE
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Padding(
-                padding: EdgeInsets.only(top: 2),
-                child: Icon(Icons.people_outline, size: 16, color: Color(0xFF0C3169)),
-              ),
+              Padding(padding: const EdgeInsets.only(top: 2), child: Icon(Icons.people_outline, size: 16, color: primaryColor)),
               const SizedBox(width: 6),
-              Expanded(
-                child: Text(
-                  detailsText,
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: Colors.grey.shade700,
-                    fontWeight: FontWeight.w500,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis, 
-                ),
-              ),
+              Expanded(child: Text(detailsText, style: TextStyle(fontSize: 13, color: Colors.grey.shade700, fontWeight: FontWeight.w500), maxLines: 1, overflow: TextOverflow.ellipsis)),
             ],
           ),
             
-          const Padding(
-            padding: EdgeInsets.symmetric(vertical: 10),
-            child: Divider(height: 1, thickness: 1, color: Color(0xFFF0F0F0)),
-          ),
+          const Padding(padding: EdgeInsets.symmetric(vertical: 10), child: Divider(height: 1, thickness: 1, color: Color(0xFFF0F0F0))),
 
-          /// 📅 DATE
           Row(
             children: [
-              Container(
-                padding: const EdgeInsets.all(6),
-                decoration: BoxDecoration(
-                  color: Colors.grey.shade100,
-                  borderRadius: BorderRadius.circular(8)
-                ),
-                child: const Icon(Icons.calendar_today, size: 14, color: Color(0xFF0C3169)),
-              ),
+              Container(padding: const EdgeInsets.all(6), decoration: BoxDecoration(color: Colors.grey.shade100, borderRadius: BorderRadius.circular(8)), child: Icon(Icons.calendar_today, size: 14, color: primaryColor)),
               const SizedBox(width: 8),
-              Text(
-                formatDate(start),
-                style: const TextStyle(fontSize: 12,  color: Colors.black87),
-              ),
+              Text(formatDate(start), style: const TextStyle(fontSize: 12,  color: Colors.black87)),
             ],
           ),
           const SizedBox(height: 5),
 
-          /// ⏰ TIME & DURATION
           Row(
             children: [
-              Container(
-                padding: const EdgeInsets.all(6),
-                decoration: BoxDecoration(
-                  color: Colors.grey.shade100,
-                  borderRadius: BorderRadius.circular(8)
-                ),
-                child: const Icon(Icons.access_time, size: 14, color: Color(0xFF0C3169)),
-              ),
+              Container(padding: const EdgeInsets.all(6), decoration: BoxDecoration(color: Colors.grey.shade100, borderRadius: BorderRadius.circular(8)), child: Icon(Icons.access_time, size: 14, color: primaryColor)),
               const SizedBox(width: 8),
-              Text(
-                "${formatTime(start)} - ${formatTime(end)}  •  ${formatDuration(start, end)}", 
-                style: const TextStyle(fontSize: 12, color: Colors.black87),
-              ),
+              Text("${formatTime(start)} - ${formatTime(end)}  •  ${formatDuration(start, end)}", style: const TextStyle(fontSize: 12, color: Colors.black87)),
             ],
           ),
           const SizedBox(height: 5),
 
-          /// 📍 LOCATION
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Container(
-                padding: const EdgeInsets.all(6),
-                decoration: BoxDecoration(
-                  color: Colors.grey.shade100,
-                  borderRadius: BorderRadius.circular(8)
-                ),
-                child: const Icon(Icons.location_on_outlined, size: 14, color: Color(0xFF0C3169)),
-              ),
+              Container(padding: const EdgeInsets.all(6), decoration: BoxDecoration(color: Colors.grey.shade100, borderRadius: BorderRadius.circular(8)), child: Icon(Icons.location_on_outlined, size: 14, color: primaryColor)),
               const SizedBox(width: 8),
               Expanded(
                 child: Padding(
                   padding: const EdgeInsets.only(top: 4),
-                  child: Text(
-                    location,
-                    style: const TextStyle(fontSize: 12, color: Colors.black87, height: 1.2),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
+                  child: Text(location, style: const TextStyle(fontSize: 12, color: Colors.black87, height: 1.2), maxLines: 1, overflow: TextOverflow.ellipsis),
                 ),
               ),
             ],
@@ -838,32 +921,20 @@ class _ActivityListScreenState extends State<ActivityListScreen> {
 
           const SizedBox(height: 16),
 
-          /// 🔵 JOIN BUTTON UI
           if (!isCreator)
             SizedBox(
-              width: double.infinity,
-              height: 48,
+              width: double.infinity, height: 48,
               child: ElevatedButton(
                 onPressed: (hasJoined || isFull) ? null : () => joinActivity(doc.id),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF0C3169),
+                  backgroundColor: primaryColor,
                   disabledBackgroundColor: Colors.grey.shade300,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10),
-                  ),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                   elevation: 0,
                 ),
                 child: Text(
-                  hasJoined
-                      ? "Joined"
-                      : isFull
-                          ? "Game Full"
-                          : "Join Game",
-                  style: TextStyle(
-                    color: (hasJoined || isFull) ? Colors.grey.shade600 : Colors.white,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16,
-                  ),
+                  hasJoined ? "Joined" : isFull ? "Game Full" : "Join Game",
+                  style: TextStyle(color: (hasJoined || isFull) ? Colors.grey.shade600 : Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
                 ),
               ),
             ),
@@ -872,14 +943,7 @@ class _ActivityListScreenState extends State<ActivityListScreen> {
             Center(
               child: Padding(
                 padding: const EdgeInsets.symmetric(vertical: 8.0),
-                child: Text(
-                  "You are the host",
-                  style: TextStyle(
-                    color: Colors.grey.shade500,
-                    fontSize: 14,
-                    fontStyle: FontStyle.italic,
-                  ),
-                ),
+                child: Text("You are the host", style: TextStyle(color: Colors.grey.shade500, fontSize: 14, fontStyle: FontStyle.italic)),
               ),
             ),
         ],
