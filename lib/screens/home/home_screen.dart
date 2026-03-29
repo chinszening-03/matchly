@@ -284,25 +284,19 @@ class _HomeScreenState extends State<HomeScreen> {
         elevation: 0,
         title: GestureDetector(
           onTap: () => _showLocationBottomSheet(context),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
             children: [
-              Row(
-                children: [
-                  Icon(Icons.location_on, color: primaryColor, size: 20),
-                  const SizedBox(width: 6),
-                  Expanded(
-                    child: Text(
-                      locationName, 
-                      style: const TextStyle(color: Colors.black, fontSize: 18, fontWeight: FontWeight.w500),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                  Icon(Icons.keyboard_arrow_down, color: Colors.black, size: 18),
-                   
-                ],
+              Icon(Icons.location_on, color: primaryColor, size: 20),
+              const SizedBox(width: 6),
+              Flexible(
+                child: Text(
+                  locationName, 
+                  style: const TextStyle(color: Colors.black, fontSize: 16, fontWeight: FontWeight.bold),
+                  maxLines: 1, overflow: TextOverflow.ellipsis,
+                ),
               ),
+              const Icon(Icons.keyboard_arrow_down, color: Colors.black, size: 18),
             ],
           ),
         ),
